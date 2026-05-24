@@ -1,20 +1,101 @@
-﻿// stenkin_var_5.cpp : Этот файл содержит функцию "main". Здесь начинается и заканчивается выполнение программы.
-//
-
+﻿#pragma once
 #include <iostream>
+#include <string>
+#include <windows.h>
+#include "Header.h" 
 
-int main()
+int ExprNode::globalIdCounter = 0;
+
+Error::Error(ErrorType errorType, int errorPosition, std::string lexemText)
 {
-    std::cout << "Hello World!\n";
+    type = errorType;
+    position = errorPosition;
+    invalidLexem = lexemText;
 }
 
-// Запуск программы: CTRL+F5 или меню "Отладка" > "Запуск без отладки"
-// Отладка программы: F5 или меню "Отладка" > "Запустить отладку"
+ExprNode::ExprNode()
+{
+    id = ++globalIdCounter;
+    type = typeExprNode::con;
+    value = 0.0f;
+    coefficient = 1;
+    hashValue = 0;
+}
 
-// Советы по началу работы 
-//   1. В окне обозревателя решений можно добавлять файлы и управлять ими.
-//   2. В окне Team Explorer можно подключиться к системе управления версиями.
-//   3. В окне "Выходные данные" можно просматривать выходные данные сборки и другие сообщения.
-//   4. В окне "Список ошибок" можно просматривать ошибки.
-//   5. Последовательно выберите пункты меню "Проект" > "Добавить новый элемент", чтобы создать файлы кода, или "Проект" > "Добавить существующий элемент", чтобы добавить в проект существующие файлы кода.
-//   6. Чтобы снова открыть этот проект позже, выберите пункты меню "Файл" > "Открыть" > "Проект" и выберите SLN-файл.
+/**
+ * @brief Перегруженный оператор "меньше" для сортировки узлов дерева.
+ * @param other Константная ссылка на другой узел для сравнения.
+ * @return true, если текущий узел меньше по приоритету или значению, иначе false.
+ */
+bool ExprNode::operator<(const ExprNode& other) const
+{
+    //Если типы узлов равны
+    if (this->type == other.type)
+    {
+        //Если тип – переменная
+        if (this->type == typeExprNode::var)
+        {
+            //Сравнить переменные
+            return this->varName < other.varName;
+        }
+
+        //Если тип – константа
+        if (this->type == typeExprNode::con)
+        {
+            //Сравнить константы
+            return this->value < other.value;
+        }
+
+        //Иначе (одинаковые операции)
+        //Если количество операндов не равно
+        if (this->operands.size() != other.operands.size())
+        {
+            //Сравнить количество операндов
+            return this->operands.size() < other.operands.size();
+        }
+
+        //Пройти в цикле по всем операндам
+        for (size_t i = 0; i < this->operands.size(); ++i)
+        {
+            //Если текущий операнд this меньше
+            if (*this->operands[i] < *other.operands[i])
+            {
+                return true;
+            }
+            //Если операнд other меньше текущего
+            if (*other.operands[i] < *this->operands[i])
+            {
+                return false;
+            }
+        }
+
+        //Если все операнды идентичны
+        return false;
+    }
+
+    //Иначе (типы узлов разные) – сравниваем приоритеты типов
+    return (int)this->type < (int)other.type;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int main(int argc, char* argv[])
+{
+    SetConsoleCP(1251);
+    SetConsoleOutputCP(1251);
+
+    return 0;
+}
