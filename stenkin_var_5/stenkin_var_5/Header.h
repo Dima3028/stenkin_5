@@ -74,6 +74,13 @@ public:
 };
 
 /**
+ * @brief Функция для формирования единого сообщения со всеми ошибками.
+ * @param errorList Вектор, содержащий все найденные ошибки.
+ * @return Строка с полным отчетом об ошибках.
+ */
+std::string formatAllErrors(const std::vector<Error>& errorList);
+
+/**
  * @class ExprNode
  * @brief Класс, представляющий собой узел дерева математических выражений.
  */

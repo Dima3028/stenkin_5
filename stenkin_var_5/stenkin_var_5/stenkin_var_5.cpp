@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <windows.h>
+#include <fstream>
 #include "Header.h" 
 
 int ExprNode::globalIdCounter = 0;
@@ -77,7 +78,66 @@ bool ExprNode::operator<(const ExprNode& other) const
     return (int)this->type < (int)other.type;
 }
 
+std::string Error::generateErrorMessage() const
+{
+    switch (type)
+    {
+    case ErrorType::NoError:
+        return "Ошибок нет.";
+    case ErrorType::FileNotExist:
+        return "Указанный входной файл не существует или к нему нет доступа.";
+    case ErrorType::OutFileCreateFail:
+        return "Невозможно создать указанный выходной файл.";
+    case ErrorType::FileEmpty:
+        return "Указанный файл для входных данных пуст.";
+    case ErrorType::MultipleRelations:
+        return "Во входных данных больше одного знака равенства или неравенства.";
+    case ErrorType::InvalidVarName:
+        return "Неверное написание имени переменной.";
+    case ErrorType::OutOfRange:
+        return "Введенные числа (константы) выходят за допустимый диапазон [-1000; 1000].";
+    case ErrorType::UnsupportedChar:
+        return "Встретилась неподдерживаемая последовательность символов.";
+    case ErrorType::NotEnoughOperands:
+        return "Недостаточное количество операндов для операции.";
+    case ErrorType::NotEnoughOperators:
+        return "Недостаточное количество операций (лишние операнды в стеке).";
+    case ErrorType::InvalidOperands:
+        return "Недопустимые операнды в выражении (например, переменная в показателе степени).";
+    case ErrorType::DivideByZero:
+        return "Попытка деления на ноль.";
+    case ErrorType::NegativePower:
+        return "Показатель степени является отрицательным числом.";
+    case ErrorType::FractionalPower:
+        return "Показатель степени является дробным числом.";
+    case ErrorType::MissingRelation:
+        return "Во входных данных отсутствует знак равенства или неравенства.";
+    default:
+        return "Неизвестная ошибка.";
+    }
+}
 
+std::string formatAllErrors(const std::vector<Error>& errorList)
+{
+    if (errorList.empty())
+    {
+        return "Проверка завершена. Ошибок не обнаружено.\n";
+    }
+
+    std::string fullReport = "========================================\n";
+    fullReport += "ВНИМАНИЕ! Обнаружено ошибок: " + std::to_string(errorList.size()) + "\n";
+    fullReport += "========================================\n";
+
+    for (const auto& currentError : errorList)
+    {
+        fullReport += "Лексема: '" + currentError.invalidLexem + "'\n";
+        fullReport += "Позиция: " + std::to_string(currentError.position) + "\n";
+        fullReport += "Детали:  " + currentError.generateErrorMessage() + "\n";
+        fullReport += "----------------------------------------\n";
+    }
+
+    return fullReport;
+}
 
 
 
