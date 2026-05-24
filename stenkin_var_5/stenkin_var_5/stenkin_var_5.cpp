@@ -177,6 +177,26 @@ bool areTreesEqual(const ExprNode* node1, const ExprNode* node2)
     return true;
 }
 
+//Вспомогательная функция перевода номера операции в строку 
+std::string opToString(typeExprNode type)
+{
+    switch (type)
+    {
+    case typeExprNode::plus:   return "+";
+    case typeExprNode::minus:  return "-";
+    case typeExprNode::mul:    return "*";
+    case typeExprNode::div:    return "/";
+    case typeExprNode::pow:    return "^";
+    case typeExprNode::u_minus:return "_-";
+    case typeExprNode::eq:     return "=";
+    case typeExprNode::lt:     return "<";
+    case typeExprNode::gt:     return ">";
+    case typeExprNode::le:     return "<=";
+    case typeExprNode::ge:     return ">=";
+    default:                   return "Unknown";
+    }
+}
+
 void generateDotParams(const ExprNode* node, std::ofstream& outFile)
 {
     if (!node)
@@ -195,7 +215,7 @@ void generateDotParams(const ExprNode* node, std::ofstream& outFile)
     }
     else
     {
-        label = "Op(" + std::to_string((int)node->type) + ")";
+        label = opToString(node->type);
     }
 
     outFile << "    node" << node->id << " [label=\"" << label << "\"];\n";
