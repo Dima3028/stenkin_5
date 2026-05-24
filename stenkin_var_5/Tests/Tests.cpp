@@ -11,24 +11,6 @@ namespace Tests
     public:
 
         /**
-         * @brief Вспомогательная функция очищения памяти для тестирования ошибок.
-         */
-        void freeTree(ExprNode* node)
-        {
-            if (!node)
-            {
-                return;
-            }
-
-            for (ExprNode* child : node->operands)
-            {
-                freeTree(child);
-            }
-
-            delete node;
-        }
-
-        /**
          * @brief Вспомогательная функция для тестирования ошибок.
          */
         void runErrorTest(const std::string& input, ErrorType expectedErrorType)

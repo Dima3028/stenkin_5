@@ -124,8 +124,7 @@ bool areTreesEqual(const ExprNode* node1, const ExprNode* node2);
 
 /**
  * @brief –екурсивно очищает динамическую пам€ть, выделенную под узлы дерева.
- * ѕроходит по всем дочерним элементам переданного узла и освобождает их,
- * предотвраща€ утечки пам€ти после завершени€ работы с выражением.
+ * ѕроходит по всем дочерним элементам переданного узла и освобождает их.
  * @param node ”казатель на корень удал€емого поддерева.
  */
 void freeTree(ExprNode* node);
@@ -145,6 +144,13 @@ void generateDotFile(const ExprNode* root, const std::string& filename);
  * @return true, если дерево успешно построено без ошибок, иначе false.
  */
 bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>& errors);
+
+/**
+ * @brief –азбивает строку с математическим выражением в обратной польской записи (ќѕ«) на отдельные лексемы.
+ * @param rpnString  онстантна€ ссылка на входную строку.
+ * @return ¬ектор строк, где кажда€ строка представл€ет собой отдельную лексему (операнд или операцию).
+ */
+std::vector<std::string> tokenizeRPN(const std::string& rpnString);
 
 /**
  * @brief ¬ыполн€ет структурные преобразовани€ бинарного дерева в n-арное.
