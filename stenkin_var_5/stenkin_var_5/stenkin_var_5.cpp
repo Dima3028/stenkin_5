@@ -139,7 +139,108 @@ std::string formatAllErrors(const std::vector<Error>& errorList)
     return fullReport;
 }
 
+bool areTreesEqual(const ExprNode* node1, const ExprNode* node2)
+{
+    if (node1 == nullptr && node2 == nullptr)
+    {
+        return true;
+    }
+    if (node1 == nullptr || node2 == nullptr)
+    {
+        return false;
+    }
 
+    if (node1->type != node2->type ||
+        node1->value != node2->value ||
+        node1->varName != node2->varName ||
+        node1->coefficient != node2->coefficient)
+    {
+        return false;
+    }
+
+    if (node1->operands.size() != node2->operands.size())
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < node1->operands.size(); ++i)
+    {
+        if (!areTreesEqual(node1->operands[i], node2->operands[i]))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void generateDotParams(const ExprNode* node, std::ofstream& outFile)
+{
+    if (!node)
+    {
+        return;
+    }
+
+    std::string label;
+    if (node->type == typeExprNode::var)
+    {
+        label = node->varName;
+    }
+    else if (node->type == typeExprNode::con)
+    {
+        label = std::to_string(node->value);
+    }
+    else
+    {
+        label = "Op(" + std::to_string((int)node->type) + ")";
+    }
+
+    outFile << "    node" << node->id << " [label=\"" << label << "\"];\n";
+
+    for (const ExprNode* child : node->operands)
+    {
+        if (child)
+        {
+            outFile << "    node" << node->id << " -> node" << child->id << ";\n";
+            generateDotParams(child, outFile);
+        }
+    }
+}
+
+void generateDotFile(const ExprNode* root, const std::string& filename)
+{
+    if (!root)
+    {
+        return;
+    }
+
+    std::ofstream outFile(filename);
+    if (!outFile.is_open())
+    {
+        return;
+    }
+
+    outFile << "digraph ExpressionTree {\n";
+    generateDotParams(root, outFile);
+    outFile << "}\n";
+    outFile.close();
+}
+
+bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>& errors)
+{
+    // реализовать
+    return true;
+}
+
+void transformTree(ExprNode* node)
+{
+    // реализовать
+}
+
+void simplifyTree(ExprNode*& node)
+{
+    // реализовать
+}
 
 
 
