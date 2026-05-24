@@ -163,3 +163,5 @@ void transformTree(ExprNode* node);
  * @param node —сылка на указатель текущего узла. ѕередаетс€ по ссылке, так как узел может быть заменен или удален в процессе оптимизации.
  */
 void simplifyTree(ExprNode*& node);
+
+void computeHash(ExprNode* node);

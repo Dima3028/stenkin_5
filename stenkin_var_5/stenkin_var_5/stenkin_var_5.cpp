@@ -199,23 +199,26 @@ std::string opToString(typeExprNode type)
 
 void generateDotParams(const ExprNode* node, std::ofstream& outFile)
 {
-    if (!node)
-    {
-        return;
-    }
+    if (!node) return;
 
     std::string label;
     if (node->type == typeExprNode::var)
     {
         label = node->varName;
+        if (node->coefficient != 1)
+            label += "\\ncoef=" + std::to_string(node->coefficient);
     }
     else if (node->type == typeExprNode::con)
     {
         label = std::to_string(node->value);
+        if (node->coefficient != 1)
+            label += "\\ncoef=" + std::to_string(node->coefficient);
     }
     else
     {
         label = opToString(node->type);
+        if (node->coefficient != 1)
+            label += "\\ncoef=" + std::to_string(node->coefficient);
     }
 
     outFile << "    node" << node->id << " [label=\"" << label << "\"];\n";
@@ -593,16 +596,20 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
     return true;
 }
 
-void transformTree(ExprNode* node)
-{
-    // реализовать
-}
-
 void simplifyTree(ExprNode*& node)
 {
     // реализовать
 }
 
+void transformTree(ExprNode* node)
+{
+    // реализовать
+}
+
+void computeHash(ExprNode* node)
+{
+    // реализовать
+}
 
 
 

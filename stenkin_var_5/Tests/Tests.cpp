@@ -1,4 +1,4 @@
-#include "pch.h"
+п»ї#include "pch.h"
 #include "CppUnitTest.h"
 #include "../stenkin_var_5/Header.h"
 
@@ -11,7 +11,7 @@ namespace Tests
     public:
 
         /**
-         * @brief Вспомогательная функция для тестирования ошибок.
+         * @brief Р’СЃРїРѕРјРѕРіР°С‚РµР»СЊРЅР°СЏ С„СѓРЅРєС†РёСЏ РґР»СЏ С‚РµСЃС‚РёСЂРѕРІР°РЅРёСЏ РѕС€РёР±РѕРє.
          */
         void runErrorTest(const std::string& input, ErrorType expectedErrorType)
         {
@@ -20,8 +20,8 @@ namespace Tests
 
             bool result = buildTree(input, root, errors);
 
-            Assert::IsFalse(result, L"Функция должна вернуть false при наличии ошибок.");
-            Assert::IsTrue(errors.size() > 0, L"Вектор ошибок не должен быть пустым.");
+            Assert::IsFalse(result, L"Р¤СѓРЅРєС†РёСЏ РґРѕР»Р¶РЅР° РІРµСЂРЅСѓС‚СЊ false РїСЂРё РЅР°Р»РёС‡РёРё РѕС€РёР±РѕРє.");
+            Assert::IsTrue(errors.size() > 0, L"Р’РµРєС‚РѕСЂ РѕС€РёР±РѕРє РЅРµ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј.");
 
             bool errorFound = false;
             for (int i = 0; i < errors.size(); ++i)
@@ -33,7 +33,7 @@ namespace Tests
                 }
             }
 
-            Assert::IsTrue(errorFound, L"Ожидаемый тип ошибки не найден в векторе ошибок.");
+            Assert::IsTrue(errorFound, L"РћР¶РёРґР°РµРјС‹Р№ С‚РёРї РѕС€РёР±РєРё РЅРµ РЅР°Р№РґРµРЅ РІ РІРµРєС‚РѕСЂРµ РѕС€РёР±РѕРє.");
 
             freeTree(root);
         }
@@ -46,16 +46,16 @@ namespace Tests
 
             bool result = buildTree(input, root, errors);
 
-            Assert::IsTrue(result, L"Функция должна вернуть true.");
-            Assert::AreEqual(size_t(0), errors.size(), L"Вектор ошибок должен быть пустым.");
-            Assert::IsNotNull(root, L"Дерево должно быть построено.");
-            Assert::IsTrue(root->type == typeExprNode::eq, L"Корень должен быть знаком равенства.");
+            Assert::IsTrue(result, L"Р¤СѓРЅРєС†РёСЏ РґРѕР»Р¶РЅР° РІРµСЂРЅСѓС‚СЊ true.");
+            Assert::AreEqual(size_t(0), errors.size(), L"Р’РµРєС‚РѕСЂ РѕС€РёР±РѕРє РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј.");
+            Assert::IsNotNull(root, L"Р”РµСЂРµРІРѕ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ РїРѕСЃС‚СЂРѕРµРЅРѕ.");
+            Assert::IsTrue(root->type == typeExprNode::eq, L"РљРѕСЂРµРЅСЊ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р·РЅР°РєРѕРј СЂР°РІРµРЅСЃС‚РІР°.");
 
             if (root)
             {
-                Assert::IsTrue(root->operands.size() == 2, L"У корня должно быть 2 потомка.");
-                Assert::IsTrue(root->operands[0]->type == typeExprNode::var, L"Левый потомок должен быть переменной.");
-                Assert::IsTrue(root->operands[1]->type == typeExprNode::con, L"Правый потомок должен быть константой.");
+                Assert::IsTrue(root->operands.size() == 2, L"РЈ РєРѕСЂРЅСЏ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ 2 РїРѕС‚РѕРјРєР°.");
+                Assert::IsTrue(root->operands[0]->type == typeExprNode::var, L"Р›РµРІС‹Р№ РїРѕС‚РѕРјРѕРє РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РїРµСЂРµРјРµРЅРЅРѕР№.");
+                Assert::IsTrue(root->operands[1]->type == typeExprNode::con, L"РџСЂР°РІС‹Р№ РїРѕС‚РѕРјРѕРє РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РєРѕРЅСЃС‚Р°РЅС‚РѕР№.");
             }
 
             generateDotFile(root, "testMinimalTree.dot");
@@ -70,10 +70,10 @@ namespace Tests
 
             bool result = buildTree(input, root, errors);
 
-            Assert::IsTrue(result, L"Функция должна вернуть true.");
-            Assert::AreEqual(size_t(0), errors.size(), L"Вектор ошибок должен быть пустым.");
-            Assert::IsNotNull(root, L"Дерево должно быть построено.");
-            Assert::IsTrue(root->type == typeExprNode::gt, L"Корень должен быть знаком строго больше (>).");
+            Assert::IsTrue(result, L"Р¤СѓРЅРєС†РёСЏ РґРѕР»Р¶РЅР° РІРµСЂРЅСѓС‚СЊ true.");
+            Assert::AreEqual(size_t(0), errors.size(), L"Р’РµРєС‚РѕСЂ РѕС€РёР±РѕРє РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј.");
+            Assert::IsNotNull(root, L"Р”РµСЂРµРІРѕ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ РїРѕСЃС‚СЂРѕРµРЅРѕ.");
+            Assert::IsTrue(root->type == typeExprNode::gt, L"РљРѕСЂРµРЅСЊ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р·РЅР°РєРѕРј СЃС‚СЂРѕРіРѕ Р±РѕР»СЊС€Рµ (>).");
 
             generateDotFile(root, "testComplexTree.dot");
             freeTree(root);
@@ -87,9 +87,9 @@ namespace Tests
 
             bool result = buildTree(input, root, errors);
 
-            Assert::IsTrue(result, L"Функция должна вернуть true.");
-            Assert::AreEqual(size_t(0), errors.size(), L"Вектор ошибок должен быть пустым.");
-            Assert::IsNotNull(root, L"Дерево должно быть построено.");
+            Assert::IsTrue(result, L"Р¤СѓРЅРєС†РёСЏ РґРѕР»Р¶РЅР° РІРµСЂРЅСѓС‚СЊ true.");
+            Assert::AreEqual(size_t(0), errors.size(), L"Р’РµРєС‚РѕСЂ РѕС€РёР±РѕРє РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј.");
+            Assert::IsNotNull(root, L"Р”РµСЂРµРІРѕ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ РїРѕСЃС‚СЂРѕРµРЅРѕ.");
 
             generateDotFile(root, "testLargeTree.dot");
             freeTree(root);
@@ -115,7 +115,7 @@ namespace Tests
                     break;
                 }
             }
-            Assert::IsTrue(errorFound, L"Ожидается ошибка FileEmpty или MissingRelation.");
+            Assert::IsTrue(errorFound, L"РћР¶РёРґР°РµС‚СЃСЏ РѕС€РёР±РєР° FileEmpty РёР»Рё MissingRelation.");
             freeTree(root);
         }
 
