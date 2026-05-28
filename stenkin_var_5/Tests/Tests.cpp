@@ -338,8 +338,8 @@ namespace Tests
                         makeVar("a", 1),
                         makeOp(typeExprNode::mul,
                         {
-                            makeVar("b", 1),
-                            makeVar("c", 1)
+                          makeVar("b", 1),
+                            makeVar("c", 1)  
                         })
                     }),
                     makeCon(0.0f, 1)
@@ -465,7 +465,7 @@ namespace Tests
             const std::string name = "testComplexNestedDivAndMinus";
             ExprNode* root = buildAndTransform(
                 "a b - c / d e - / f / g h - i - * 0 =", name);
-
+            // a -b)\c  *(d-e)
 
             ExprNode* expected = makeOp(typeExprNode::eq,
                 {
@@ -546,7 +546,7 @@ namespace Tests
             const std::string name = "testComplexUnaryBinaryDivMul";
             ExprNode* root = buildAndTransform(
                 "a b _- - c / d / e f g * h * - - 0 =", name);
-
+            // a + b  /c/d ) - ( e - (f*g*h)) => a+b /(c*d) - e + (f*g*h)
             ExprNode* expected = makeOp(typeExprNode::eq,
                 {
                     makeOp(typeExprNode::plus,
@@ -583,4 +583,5 @@ namespace Tests
             freeTree(root);
         }
     };
+
 }

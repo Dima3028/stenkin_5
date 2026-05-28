@@ -148,11 +148,11 @@ bool areTreesEqual(const ExprNode* node1, const ExprNode* node2)
     {
         return true;
     }
+
     if (node1 == nullptr || node2 == nullptr)
     {
         return false;
     }
-
     if (node1->type != node2->type ||
         node1->value != node2->value ||
         node1->varName != node2->varName ||
@@ -596,24 +596,141 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
     return true;
 }
 
-void simplifyTree(ExprNode*& node)
+void computeHash(ExprNode* node)
 {
-    // реализовать
+    if (!node) return;
+
+    for (ExprNode* child : node->operands)
+        computeHash(child);
+
+    std::hash<int> intHasher;
+    node->hashValue = intHasher((int)node->type);
+
+    if (node->type == typeExprNode::var)
+    {
+        std::hash<std::string> strHasher;
+        node->hashValue ^= strHasher(node->varName)
+            + 0x9e3779b9 + (node->hashValue << 6) + (node->hashValue >> 2);
+    }
+    else if (node->type == typeExprNode::con)
+    {
+        std::hash<float> floatHasher;
+        node->hashValue ^= floatHasher(node->value)
+            + 0x9e3779b9 + (node->hashValue << 6) + (node->hashValue >> 2);
+    }
+    else
+    {
+        for (ExprNode* child : node->operands)
+        {
+            if (node->type == typeExprNode::plus || node->type == typeExprNode::mul)
+            {
+                node->hashValue += child->hashValue;
+            }
+            else
+            {
+                node->hashValue ^= child->hashValue
+                    + 0x9e3779b9 + (node->hashValue << 6) + (node->hashValue >> 2);
+            }
+        }
+    }
 }
 
 void transformTree(ExprNode* node)
 {
-    // реализовать
+    if (!node) return;
+
+    // Шаг 2: рекурсивно трансформируем всех потомков
+    for (ExprNode* child : node->operands)
+        transformTree(child);
+
+    // Шаг 3: унарный минус
+    if (node->type == typeExprNode::u_minus)
+    {
+        ExprNode* child = node->operands[0];
+
+        node->type = child->type;
+        node->varName = child->varName;
+        node->value = child->value;
+        node->coefficient *= -1;
+
+        node->operands.clear();
+        for (ExprNode* grandChild : child->operands)
+            node->operands.push_back(grandChild);
+
+        child->operands.clear();
+        delete child;
+    }
+
+    // Шаг 4: бинарный минус → plus с negated правым операндом
+    if (node->type == typeExprNode::minus)
+    {
+        node->type = typeExprNode::plus;
+        node->operands[1]->coefficient *= -1;
+    }
+
+    // Шаг 5: div(div(a,b), c) → div(a, mul(b,c))
+    if (node->type == typeExprNode::div &&
+        node->operands[0]->type == typeExprNode::div)
+    {
+        ExprNode* innerDiv = node->operands[0];
+
+        ExprNode* mulNode = new ExprNode();
+        mulNode->type = typeExprNode::mul;
+        mulNode->operands.push_back(innerDiv->operands[1]); // b
+        mulNode->operands.push_back(node->operands[1]);     // c
+
+        node->operands[0] = innerDiv->operands[0]; // a
+        node->operands[1] = mulNode;
+
+        innerDiv->operands.clear();
+        delete innerDiv;
+
+        transformTree(mulNode);
+    }
+
+    // Шаг 6: уплощение plus/mul
+    if (node->type == typeExprNode::plus || node->type == typeExprNode::mul)
+    {
+        std::vector<ExprNode*> newChild;
+
+        for (ExprNode* child : node->operands)
+        {
+            if (child->type == node->type)
+            {
+                if (node->type == typeExprNode::plus)
+                {
+                    for (ExprNode* grandChild : child->operands)
+                        grandChild->coefficient *= child->coefficient;
+                }
+                else // mul
+                {
+                    node->coefficient *= child->coefficient;
+                }
+
+                for (ExprNode* grandChild : child->operands)
+                    newChild.push_back(grandChild);
+
+                child->operands.clear();
+                delete child;
+            }
+            else
+            {
+                newChild.push_back(child);
+            }
+        }
+
+        node->operands = newChild;
+    }
+
+    // Шаг 8: пересчитать хэш
+    computeHash(node);
 }
 
-void computeHash(ExprNode* node)
+
+void simplifyTree(ExprNode*& node)
 {
     // реализовать
 }
-
-
-
-
 
 
 
