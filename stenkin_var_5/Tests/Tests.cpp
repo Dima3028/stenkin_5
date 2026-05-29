@@ -7,11 +7,31 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace Tests
 {
 
+
     /**
-         * @brief Вспомогательная функция: строит дерево из ОПЗ,
-         *        сохраняет .dot до трансформации, применяет transformTree,
-         *        сохраняет .dot после, возвращает корень.
-         */
+    * @brief Вспомогательная функция: строит дерево из ОПЗ,
+    *        сохраняет .dot до упрощения, применяет simplifyTree,
+    *        сохраняет .dot после, возвращает корень.
+    */
+    static ExprNode* buildAndSimplify(const std::string& input,
+        const std::string& testName)
+    {
+        ExprNode* root = nullptr;
+        std::vector<Error> errors;
+        buildTree(input, root, errors);
+
+        generateDotFile(root, "input_simplify_" + testName + ".dot");
+        simplifyTree(root);
+        generateDotFile(root, "fin_simplify_" + testName + ".dot");
+        return root;
+    }
+
+
+    /**
+    * @brief Вспомогательная функция: строит дерево из ОПЗ,
+    *        сохраняет .dot до трансформации, применяет transformTree,
+    *        сохраняет .dot после, возвращает корень.
+    */
     ExprNode* buildAndTransform(const std::string& input,
         const std::string& testName)
     {
@@ -584,4 +604,542 @@ namespace Tests
         }
     };
 
+
+    TEST_CLASS(Tests_simplifyTree)
+    {
+    public:
+
+        TEST_METHOD(testNullptr)
+        {
+            int counterBefore = ExprNode::globalIdCounter;
+            ExprNode* ptr = nullptr;
+            simplifyTree(ptr);
+            Assert::AreEqual(counterBefore, ExprNode::globalIdCounter,
+                L"При nullptr новые узлы создаваться не должны.");
+        }
+
+        TEST_METHOD(testNestedPow)
+        {
+            const std::string name = "testNestedPow";
+            ExprNode* root = buildAndSimplify("a 2 ^ 3 ^ 0 =", name);
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeOp(typeExprNode::pow, { makeVar("a", 1), makeCon(6.0f, 1) }),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+            computeHash(root);
+            Assert::IsTrue(areTreesEqual(root, expected), L"(a^2)^3 => a^6.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testPowConstants)
+        {
+            const std::string name = "testPowConstants";
+            ExprNode* root = buildAndSimplify("2 3 ^ 0 =", name);
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeCon(8.0f, 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected), L"2^3 => 8.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testDivEqualNodes)
+        {
+            const std::string name = "testDivEqualNodes";
+            ExprNode* root = buildAndSimplify("a b + a b + / 0 =", name);
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeCon(1.0f, 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected), L"(a+b)/(a+b) => 1.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testDivZeroNumerator)
+        {
+            const std::string name = "testDivZeroNumerator";
+            ExprNode* root = buildAndSimplify("0 a / 0 =", name);
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeCon(0.0f, 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected), L"0/a => 0.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testDivConstants)
+        {
+            const std::string name = "testDivConstants";
+            ExprNode* root = buildAndSimplify("10 2 / 0 =", name);
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeCon(5.0f, 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected), L"10/2 => 5.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testMulByZero)
+        {
+            const std::string name = "testMulByZero";
+            ExprNode* root = buildAndSimplify("a b * 0 * 0 =", name);
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeCon(0.0f, 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected), L"a*b*0 => 0.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testMulConstantsMerge)
+        {
+            const std::string name = "testMulConstantsMerge";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("a 2 * 3 * 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeVar("a",  6),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"a*2*3 должно стать mul(6, a).");
+
+            freeTree(expected);
+            freeTree(root);
+        }
+
+
+        TEST_METHOD(testMulGroupIntoPow)
+        {
+            const std::string name = "testMulGroupIntoPow";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("a a * a * b * 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeOp(typeExprNode::mul,
+                    {
+                        makeOp(typeExprNode::pow,
+                        {
+                            makeVar("a",  1),
+                            makeCon(3.0f, 1)
+                        }, 1),
+                        makeVar("b", 1)
+                    }, 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"a*a*a*b должно стать mul(pow(a,3), b).");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testPlusConstantsMerge)
+        {
+            const std::string name = "testPlusConstantsMerge";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("a 5 + 3 + 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeOp(typeExprNode::plus,
+                    {
+                        makeVar("a",   1),
+                        makeCon(8.0f,  1)
+                    }),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"a+5+3 должно стать plus(a, con8).");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testPlusRemoveZeros)
+        {
+            const std::string name = "testPlusRemoveZeros";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("a 0 + b + 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeOp(typeExprNode::plus,
+                    {
+                        makeVar("a", 1),
+                        makeVar("b", 1)
+                    }),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"a+0+b должно стать plus(a, b).");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+
+        TEST_METHOD(testPlusLikeTerms)
+        {
+            const std::string name = "testPlusLikeTerms";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("a a + a + 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expr = root->operands[0];
+            Assert::IsTrue(expr->type == typeExprNode::var, L"Результат — var.");
+            Assert::AreEqual(std::string("a"), expr->varName);
+            Assert::AreEqual(3, expr->coefficient, L"Коэффициент — 3.");
+            freeTree(root);
+        }
+
+        TEST_METHOD(testPlusCancellation)
+        {
+            const std::string name = "testPlusCancellation";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("a a _- + b + b _- + 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expr = root->operands[0];
+            Assert::IsTrue(expr->type == typeExprNode::con, L"Результат — con.");
+            Assert::AreEqual(0.0f, expr->value, L"Значение — 0.");
+            freeTree(root);
+        }
+
+        TEST_METHOD(testFullSimplification)
+        {
+            const std::string name = "testFullSimplification";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("a a + 3 3 / * 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expr = root->operands[0];
+            Assert::IsTrue(expr->type == typeExprNode::var, L"Результат — var(a).");
+            Assert::AreEqual(std::string("a"), expr->varName);
+            Assert::AreEqual(2, expr->coefficient, L"Коэффициент — 2.");
+            freeTree(root);
+        }
+
+        TEST_METHOD(testMulRemoveUnitConstants)
+        {
+            const std::string name = "testMulRemoveUnitConstants";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("a 1 * 1 * 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeVar("a", 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"a*1*1 должно стать var 'a' с coefficient=1.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testMulGroupWithCoefficients)
+        {
+            const std::string name = "testMulGroupWithCoefficients";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("2 a * 3 a * * 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeOp(typeExprNode::pow,
+                    {
+                        makeVar("a",    1),
+                        makeCon(2.0f,   1)
+                    }, 6),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"(2*a)*(3*a) должно стать pow(a,2) с coefficient=6.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+
+
+        TEST_METHOD(testPlusOnlyZeros)
+        {
+            const std::string name = "testPlusOnlyZeros";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("0 0 + 0 + 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeCon(0.0f, 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"0+0+0 должно стать con 0.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testPlusLikeComplexTerms)
+        {
+            const std::string name = "testPlusLikeComplexTerms";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("a a * a a * + 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeOp(typeExprNode::pow,
+                    {
+                        makeVar("a",  1),
+                        makeCon(2.0f, 1)
+                    }, 2),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"(a*a)+(a*a) должно стать pow(a,2) с coefficient=2.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testPlusSingleOperand)
+        {
+            const std::string name = "testPlusSingleOperand";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("a 0 + 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeVar("a", 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"a+0 должно схлопнуться в var 'a'.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testComplex1)
+        {
+            const std::string name = "testComplex1";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("2 a * a * 3 a * a * + 5 2 * + 0 + 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeOp(typeExprNode::plus,
+                    {
+                        makeOp(typeExprNode::pow,
+                        {
+                            makeVar("a",  1),
+                            makeCon(2.0f, 1)
+                        }, 5),
+                        makeCon(10.0f, 1)
+                    }),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"(2*a*a)+(3*a*a)+(5*2)+0 должно стать plus(pow(a,2)(coef=5), con10).");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testComplex2)
+        {
+            const std::string name = "testComplex2";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("a b + a b + / 5 * 5 _- + 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeCon(0.0f, 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"((a+b)/(a+b))*5 + (-5) должно стать con 0.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        TEST_METHOD(testComplex3)
+        {
+            const std::string name = "testComplex3";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+            buildTree("0 a 2 3 ^ ^ / b b * b * b 3 ^ / + 0 =", root, errors);
+            Assert::AreEqual(size_t(0), errors.size());
+
+            generateDotFile(root, "input_simplify_" + name + ".dot");
+            transformTree(root);
+            simplifyTree(root);
+            generateDotFile(root, "fin_simplify_" + name + ".dot");
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeCon(1.0f, 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+            generateDotFile(expected, "expected_simplify_" + name + ".dot");
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"0/(a^8) + b^3/b^3 должно стать con 1.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+    };
 }
