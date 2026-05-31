@@ -7,6 +7,7 @@
 #include <stack>
 #include <cctype>
 #include "Header.h" 
+#include <algorithm>
 
 int ExprNode::globalIdCounter = 0;
 
@@ -81,6 +82,27 @@ bool ExprNode::operator<(const ExprNode& other) const
     return (int)this->type < (int)other.type;
 }
 
+void sortTree(ExprNode* node)
+{
+    if (!node) return;
+
+    //Рекурсивно сортируем потомков
+    for (int i = 0; i < node->operands.size(); ++i)
+    {
+        sortTree(node->operands[i]);
+    }
+
+    //Сортируем операнды только у коммутативных операций
+    if (node->type == typeExprNode::plus || node->type == typeExprNode::mul)
+    {
+        //Сортировка с лямбда выражением
+        std::sort(node->operands.begin(), node->operands.end(),[](const ExprNode* a, const ExprNode* b)
+            {
+                return *a < *b;
+            });
+    }
+}
+
 std::string Error::generateErrorMessage() const
 {
     switch (type)
@@ -142,36 +164,36 @@ std::string formatAllErrors(const std::vector<Error>& errorList)
     return fullReport;
 }
 
-bool areTreesEqual(const ExprNode* node1, const ExprNode* node2)
+bool areTreesEqual(const ExprNode* node1, const ExprNode* node2, bool ignoreCoef)
 {
-    if (node1 == nullptr && node2 == nullptr)
+    // Быстрая проверка по хэшу (только если ignoreCoef=false, иначе хэши могут отличаться)
+    if (!ignoreCoef)
     {
-        return true;
+        if (node1 && node2 && node1->hashValue != node2->hashValue)
+            return false;
     }
 
-    if (node1 == nullptr || node2 == nullptr)
-    {
+    if (node1 == node2)         // оба nullptr или один и тот же указатель
+        return true;
+
+    if (!node1 || !node2)
         return false;
-    }
+
     if (node1->type != node2->type ||
-        node1->value != node2->value ||
         node1->varName != node2->varName ||
-        node1->coefficient != node2->coefficient)
-    {
+        node1->value != node2->value)
         return false;
-    }
+
+    if (!ignoreCoef && node1->coefficient != node2->coefficient)
+        return false;
 
     if (node1->operands.size() != node2->operands.size())
-    {
         return false;
-    }
 
     for (size_t i = 0; i < node1->operands.size(); ++i)
     {
-        if (!areTreesEqual(node1->operands[i], node2->operands[i]))
-        {
+        if (!areTreesEqual(node1->operands[i], node2->operands[i], ignoreCoef))
             return false;
-        }
     }
 
     return true;
@@ -309,7 +331,7 @@ bool isCon(const std::string& token, int& val)
     return true;
 }
 
-
+//Функция очистки памяти
 void freeTree(ExprNode* node)
 {
     if (node == nullptr)
@@ -367,8 +389,8 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
         };
 
     int currentPos = 0;
-    int relationCount = 0; // Для проверки: только один знак равенства/неравенства
-    int opCount = 0;       // Для проверки: максимум 100 операций
+    int relationCount = 0; 
+    int opCount = 0;       
 
     // 4. В цикле по массиву лексем с начала до конца:
     for (const std::string& token : tokens)
@@ -437,7 +459,7 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
             if (token == "=" || token == "<" || token == ">" || token == "<=" || token == ">=")
             {
                 relationCount++;
-                // ОГРАНИЧЕНИЕ: один оператор сравнения
+                //ОГРАНИЧЕНИЕ: один оператор сравнения
                 if (relationCount > 1)
                 {
                     errors.push_back(Error(ErrorType::MultipleRelations, pos, token));
@@ -454,12 +476,12 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
                 return false;
             }
 
-            // Извлекаем правый, затем левый операнд
+            //Извлекаем правый, затем левый операнд, потому что праавый появился в стеке после левого
             ExprNode* right = st.top(); st.pop();
             ExprNode* left = st.top(); st.pop();
 
             
-            // Защита от деления на ноль
+            //Защита от деления на ноль
             if (token == "/")
             {
                 if (right->type == typeExprNode::con && right->value == 0.0f)
@@ -471,10 +493,10 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
                     return false;
                 }
             }
-            // Строгие ограничения для возведения в степень
+            
             else if (token == "^")
             {
-                // ОГРАНИЧЕНИЕ: База не поддерживается для не одиночных переменных или не констант
+                //ОГРАНИЧЕНИЕ: База не поддерживается для не одиночных переменных или не констант
                 if (left->type != typeExprNode::var && left->type != typeExprNode::con)
                 {
                     errors.push_back(Error(ErrorType::InvalidOperands, pos, token));
@@ -484,7 +506,7 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
                     return false;
                 }
 
-                // ОГРАНИЧЕНИЕ: Показатель степени - константа (натуральное число <= 100)
+                //ОГРАНИЧЕНИЕ: Показатель степени - константа (натуральное число <= 100)
                 if (right->type != typeExprNode::con)
                 {
                     errors.push_back(Error(ErrorType::InvalidOperands, pos, token));
@@ -496,7 +518,7 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
 
                 int powerVal = (int)right->value;
 
-                // ОГРАНИЧЕНИЕ: Показатель степени меньше или равен 0
+                //ОГРАНИЧЕНИЕ: Показатель степени меньше или равен 0
                 if (powerVal < 0)
                 {
                     errors.push_back(Error(ErrorType::NegativePower, pos, token));
@@ -513,7 +535,7 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
                     clearStack(); 
                     return false;
                 }
-                // ОГРАНИЧЕНИЕ: Показатель степени больше 100
+                //ОГРАНИЧЕНИЕ: Показатель степени больше 100
                 if (powerVal > 100)
                 {
                     errors.push_back(Error(ErrorType::OutOfRange, pos, token));
@@ -550,7 +572,7 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
             bool isLettersOnly = true;
             for (char c : token) { if (!isalpha(c)) isLettersOnly = false; }
 
-            // ОГРАНИЧЕНИЕ: Переменные только одной строчной буквой 
+            //ОГРАНИЧЕНИЕ: Переменные только одной строчной буквой 
             if (isLettersOnly) 
             {
                 errors.push_back(Error(ErrorType::InvalidVarName, pos, token));
@@ -563,7 +585,7 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
             return false;
         }
 
-        // ОГРАНИЧЕНИЕ: Суммарное число операций не более 100
+        //ОГРАНИЧЕНИЕ: Суммарное число операций не более 100
         if (opCount > 100)
         {
             errors.push_back(Error(ErrorType::UnsupportedChar, pos, "OVER_OP_LIMIT"));
@@ -596,6 +618,7 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
     return true;
 }
 
+//Вычисление хеша
 void computeHash(ExprNode* node)
 {
     if (!node) return;
@@ -606,26 +629,31 @@ void computeHash(ExprNode* node)
     std::hash<int> intHasher;
     node->hashValue = intHasher((int)node->type);
 
+    //Рассчет для узлов-переменных
     if (node->type == typeExprNode::var)
     {
         std::hash<std::string> strHasher;
         node->hashValue ^= strHasher(node->varName)
             + 0x9e3779b9 + (node->hashValue << 6) + (node->hashValue >> 2);
     }
+    //Рассчет для узлов-чисел 
     else if (node->type == typeExprNode::con)
     {
         std::hash<float> floatHasher;
         node->hashValue ^= floatHasher(node->value)
             + 0x9e3779b9 + (node->hashValue << 6) + (node->hashValue >> 2);
     }
+    
     else
     {
         for (ExprNode* child : node->operands)
         {
+            //Рассчет для узлов-операций "+", "*", как для коммутативных
             if (node->type == typeExprNode::plus || node->type == typeExprNode::mul)
             {
                 node->hashValue += child->hashValue;
             }
+            //Рассчет для остальных узлов
             else
             {
                 node->hashValue ^= child->hashValue
@@ -639,11 +667,11 @@ void transformTree(ExprNode* node)
 {
     if (!node) return;
 
-    // Шаг 2: рекурсивно трансформируем всех потомков
+    //Рекурсивынй спуск
     for (ExprNode* child : node->operands)
         transformTree(child);
 
-    // Шаг 3: унарный минус
+    //Приведение унарного минуса к отрицательному коэфициенту узла
     if (node->type == typeExprNode::u_minus)
     {
         ExprNode* child = node->operands[0];
@@ -661,14 +689,14 @@ void transformTree(ExprNode* node)
         delete child;
     }
 
-    // Шаг 4: бинарный минус → plus с negated правым операндом
+    //Приведение бинарного минуса к "+" и отрацитальному коэфициенту
     if (node->type == typeExprNode::minus)
     {
         node->type = typeExprNode::plus;
         node->operands[1]->coefficient *= -1;
     }
 
-    // Шаг 5: div(div(a,b), c) → div(a, mul(b,c))
+    //Приведение двойного деления к делению на произведение делителей
     if (node->type == typeExprNode::div &&
         node->operands[0]->type == typeExprNode::div)
     {
@@ -688,7 +716,7 @@ void transformTree(ExprNode* node)
         transformTree(mulNode);
     }
 
-    // Шаг 6: уплощение plus/mul
+    //Перенос детей на уровни выше, если типы операций совпадают для "+", "*"
     if (node->type == typeExprNode::plus || node->type == typeExprNode::mul)
     {
         std::vector<ExprNode*> newChild;
@@ -722,14 +750,394 @@ void transformTree(ExprNode* node)
         node->operands = newChild;
     }
 
-    // Шаг 8: пересчитать хэш
+    //Перерасчет хеша
     computeHash(node);
 }
 
+// Упрощение степени 
+void simplifyPow(ExprNode*& node)
+{
+    if (node->type != typeExprNode::pow)
+        return;
 
+    ExprNode* leftOp = node->operands[0];
+    ExprNode* rightOp = node->operands[1];
+    
+    //Раскрытие вложенной степени 
+    if (leftOp->type == typeExprNode::pow &&
+        leftOp->operands[1]->type == typeExprNode::con &&
+        rightOp->type == typeExprNode::con)
+    {
+        ExprNode* base = leftOp->operands[0];
+        ExprNode* innerExp = leftOp->operands[1];
+        float     outerVal = rightOp->value;
+
+        innerExp->value *= outerVal;
+
+        freeTree(node->operands[1]);   
+        leftOp->operands.clear();
+        delete leftOp;                
+
+        node->operands[0] = base;
+        node->operands[1] = innerExp;
+
+        leftOp = node->operands[0];
+        rightOp = node->operands[1];
+    }
+
+    //Вычисление констант 
+    if (leftOp->type == typeExprNode::con &&
+        rightOp->type == typeExprNode::con)
+    {
+        float result = std::pow(leftOp->value, rightOp->value);
+        freeTree(node->operands[0]);
+        freeTree(node->operands[1]);
+        node->operands.clear();
+        node->type = typeExprNode::con;
+        node->value = result;
+    }
+}
+
+// Упрощение деления
+void simplifyDiv(ExprNode*& node)
+{
+    if (node->type != typeExprNode::div || node->operands.size() != 2)
+        return;
+
+    ExprNode* num = node->operands[0];
+    ExprNode* den = node->operands[1];
+
+    // 4.1: числитель == знаменатель => 1
+    if (areTreesEqual(num, den))
+    {
+        freeTree(num);
+        freeTree(den);
+        node->operands.clear();
+        node->type = typeExprNode::con;
+        node->value = 1.0f;
+        node->coefficient = 1;
+        return;
+    }
+
+    // 4.2: числитель == 0 => 0
+    if (num->type == typeExprNode::con && num->value == 0.0f)
+    {
+        freeTree(num);
+        freeTree(den);
+        node->operands.clear();
+        node->type = typeExprNode::con;
+        node->value = 0.0f;
+        node->coefficient = 1;
+        return;
+    }
+
+    // 4.3: оба константы и знаменатель != 0 => вычислить
+    if (num->type == typeExprNode::con &&
+        den->type == typeExprNode::con &&
+        den->value != 0.0f)
+    {
+        float result = num->value / den->value;
+        freeTree(num);
+        freeTree(den);
+        node->operands.clear();
+        node->type = typeExprNode::con;
+        node->value = result;
+    }
+}
+
+// Проверка нуля в операндах умножениея
+bool mulHasZero(ExprNode* node)
+{
+    // Если в операндах умножения есть хоть один 0
+    for (int i = 0; i < (int)node->operands.size(); ++i)
+    {
+        ExprNode* child = node->operands[i];
+        if ((child->type == typeExprNode::con && child->value == 0.0f) || child->coefficient == 0)
+            return true;
+    }
+    return false;
+}
+
+// Вынос коэффициентов потомков
+void mulCollectCoefficients(ExprNode* node)
+{
+    int totalCoef = node->coefficient;
+    for (int i = 0; i < (int)node->operands.size(); ++i)
+    {
+        totalCoef *= node->operands[i]->coefficient;
+        node->operands[i]->coefficient = 1;
+    }
+    node->coefficient = totalCoef;
+}
+
+// Вычисление констант в умножении
+void mulMergeConstants(ExprNode* node)
+{
+    float constProduct = 1.0f;
+    bool hadConst = false;
+    std::vector<ExprNode*> nonConst;
+
+    for (int i = 0; i < (int)node->operands.size(); ++i)
+    {
+        ExprNode* child = node->operands[i];
+        if (child->type == typeExprNode::con)
+        {
+            constProduct *= child->value;
+            hadConst = true;
+            freeTree(child);
+        }
+        else
+        {
+            nonConst.push_back(child);
+        }
+    }
+    node->operands = nonConst;
+
+    if (hadConst && constProduct != 1.0f)
+    {
+        ExprNode* constNode = new ExprNode();
+        constNode->type = typeExprNode::con;
+        constNode->value = constProduct;
+        node->operands.insert(node->operands.begin(), constNode);
+    }
+}
+
+// Свертывание произведения одиннаковых деревьев в степень
+void mulGroupIntoPow(ExprNode* node)
+{
+    for (int i = 0; i < (int)node->operands.size(); )
+    {
+        int count = 1;
+        while (i + count < (int)node->operands.size() &&
+            areTreesEqual(node->operands[i], node->operands[i + count]))
+        {
+            ++count;
+        }
+
+        if (count > 1)
+        {
+            ExprNode* expConst = new ExprNode();
+            expConst->type = typeExprNode::con;
+            expConst->value = (float)count;
+            ExprNode* powNode = new ExprNode();
+            powNode->type = typeExprNode::pow;
+            powNode->operands.push_back(node->operands[i]);
+            powNode->operands.push_back(expConst);
+
+            for (int k = 1; k < count; ++k)
+                freeTree(node->operands[i + k]);
+
+            node->operands.erase(node->operands.begin() + i + 1, node->operands.begin() + i + count);
+            node->operands[i] = powNode;
+        }
+        ++i;
+    }
+}
+
+// Приведение константы к коэфициенту 
+void mulAbsorbConstantIntoCoef(ExprNode*& node)
+{
+    if (node->type != typeExprNode::mul)
+        return;
+
+    ExprNode* nonConstNode = nullptr;
+    int       nonConstCount = 0;
+    float     constProduct = 1.0f;
+
+    // Вычисление константы
+    for (int i = 0; i < (int)node->operands.size(); ++i)
+    {
+        ExprNode* child = node->operands[i];
+        if (child->type == typeExprNode::con)
+            constProduct *= child->value;
+        else
+        {
+            nonConstNode = child;
+            ++nonConstCount;
+        }
+    }
+
+    if (nonConstCount != 1 || node->operands.size() <= 1)
+        return;
+
+    int intConst = (int)constProduct;
+    if ((float)intConst != constProduct)
+        return;
+
+    // Удаляем константные узлы
+    for (int i = 0; i < (int)node->operands.size(); ++i)
+    {
+        if (node->operands[i] != nonConstNode)
+            freeTree(node->operands[i]);
+    }
+    node->operands.clear();
+
+    // Поглощаем nonConstNode в текущий узел
+    node->type = nonConstNode->type;
+    node->varName = nonConstNode->varName;
+    node->value = nonConstNode->value;
+    node->coefficient *= nonConstNode->coefficient * intConst;
+    node->operands = nonConstNode->operands;
+
+    nonConstNode->operands.clear();
+    delete nonConstNode;
+}
+
+// Все упрощения для умножения
+void simplifyMul(ExprNode*& node)
+{
+    if (node->type != typeExprNode::mul)
+        return;
+
+    // Если есть 0 в операндах, то весь узел = 0
+    if (mulHasZero(node))
+    {
+        for (int i = 0; i < (int)node->operands.size(); ++i)
+            freeTree(node->operands[i]);
+        node->operands.clear();
+        node->type = typeExprNode::con;
+        node->value = 0.0f;
+        node->coefficient = 1;
+        computeHash(node);
+        return;
+    }
+
+    mulCollectCoefficients(node);
+    mulMergeConstants(node);      
+    mulGroupIntoPow(node);    
+    mulAbsorbConstantIntoCoef(node); 
+}
+
+// Вычисление констант для +
+void plusMergeConstants(ExprNode* node)
+{
+    float                  constSum = 0.0f;
+    bool                   hadConst = false;
+    std::vector<ExprNode*> nonConst;
+
+    for (int i = 0; i < (int)node->operands.size(); ++i)
+    {
+        ExprNode* child = node->operands[i];
+        if (child->type == typeExprNode::con)
+        {
+            constSum += child->value * (float) (child->coefficient);
+            hadConst = true;
+            freeTree(child);
+        }
+        else
+        {
+            nonConst.push_back(child);
+        }
+    }
+    node->operands = nonConst;
+
+    if (hadConst)
+    {
+        ExprNode* constNode = new ExprNode();
+        constNode->type = typeExprNode::con;
+        constNode->value = constSum;
+        node->operands.push_back(constNode);
+    }
+}
+
+// Удаление нулевых слагаемых
+void plusRemoveZeros(ExprNode* node)
+{
+    std::vector<ExprNode*> filtered;
+    for (int i = 0; i < (int)node->operands.size(); ++i)
+    {
+        ExprNode* child = node->operands[i];
+        if ((child->type == typeExprNode::con && child->value == 0.0f) ||
+            child->coefficient == 0)
+            freeTree(child);
+        else
+            filtered.push_back(child);
+    }
+    node->operands = filtered;
+}
+
+// Приведение подобных деревьев для +
+void plusCombineLikeTerms(ExprNode* node)
+{
+    for (int i = 0; i < (int)node->operands.size(); ++i)
+    {
+        for (int j = i + 1; j < (int)node->operands.size(); )
+        {
+            if (areTreesEqual(node->operands[i], node->operands[j], true))
+            {
+                node->operands[i]->coefficient += node->operands[j]->coefficient;
+                freeTree(node->operands[j]);
+                node->operands.erase(node->operands.begin() + j);
+            }
+            else
+            {
+                ++j;
+            }
+        }
+    }
+}
+
+// Все упрощения сложения
+void simplifyPlus(ExprNode* node)
+{
+    if (node->type != typeExprNode::plus)
+        return;
+
+    plusMergeConstants(node);    
+    plusRemoveZeros(node);   
+    plusCombineLikeTerms(node);
+    plusRemoveZeros(node); 
+}
+
+// Схлопывание пустых и одиночных узлов дерева
+void collapseNode(ExprNode*& node)
+{
+    if (node->type != typeExprNode::plus && node->type != typeExprNode::mul)
+        return;
+
+    typeExprNode originalType = node->type;
+
+    if (node->operands.empty())
+    {
+        node->type = typeExprNode::con;
+        if (originalType == typeExprNode::plus)
+        {
+            node->value = 0.0f;
+        }
+        else
+        {
+            node->value = 1.0f;
+        }
+        return;
+    }
+
+    if (node->operands.size() == 1)
+    {
+        ExprNode* only = node->operands[0];
+        node->type = only->type;
+        node->varName = only->varName;
+        node->value = only->value;
+        node->coefficient *= only->coefficient;
+        node->operands = only->operands;
+        only->operands.clear();
+        delete only;
+    }
+}
+
+// Упрощение всего дерева
 void simplifyTree(ExprNode*& node)
 {
-    // реализовать
+    if (!node) return;
+
+    for (int i = 0; i < (int)node->operands.size(); ++i) 
+        simplifyTree(node->operands[i]);
+
+    simplifyPow(node);
+    simplifyDiv(node);
+    simplifyMul(node);
+    simplifyPlus(node);
+    collapseNode(node);
+    computeHash(node);   
 }
 
 
