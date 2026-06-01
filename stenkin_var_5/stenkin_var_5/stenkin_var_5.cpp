@@ -27,11 +27,7 @@ ExprNode::ExprNode()
     hashValue = 0;
 }
 
-/**
- * @brief Перегруженный оператор "меньше" для сортировки узлов дерева.
- * @param other Константная ссылка на другой узел для сравнения.
- * @return true, если текущий узел меньше по приоритету или значению, иначе false.
- */
+ // Оператор сравнения
 bool ExprNode::operator<(const ExprNode& other) const
 {
     //Если типы узлов равны
@@ -167,6 +163,7 @@ std::string formatAllErrors(const std::vector<Error>& errorList)
     return fullReport;
 }
 
+// ФФункция сравнения деревьев
 bool areTreesEqual(const ExprNode* node1, const ExprNode* node2, bool ignoreCoef)
 {
     // Быстрая проверка по хэшу (только если ignoreCoef=false, иначе хэши могут отличаться)
@@ -658,6 +655,7 @@ void computeHash(ExprNode* node)
     }
 }
 
+// Функция трансформации дерева
 void transformTree(ExprNode* node)
 {
     if (!node) return;

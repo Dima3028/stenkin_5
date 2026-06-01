@@ -1,4 +1,5 @@
-﻿#include "pch.h"
+﻿/// @cond TEST
+#include "pch.h"
 #include "CppUnitTest.h"
 #include "../stenkin_var_5/Header.h"
 
@@ -1145,3 +1146,4 @@ namespace Tests
 
     };
 }
+/// @endcond
