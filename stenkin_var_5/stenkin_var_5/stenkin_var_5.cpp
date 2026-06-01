@@ -1135,11 +1135,36 @@ void simplifyTree(ExprNode*& node)
     computeHash(node);   
 }
 
+// Функция переброски правой части в левую
+void moveTermsToLeft(ExprNode*& root)
+{
+    // Проверка существует ли непустой корень
+    if (!root || root->operands.size() != 2)
+        return;
 
+    ExprNode* rightPart = root->operands[1];
 
+    // Если правая часть уже 0 — уже приравнено 
+    if (rightPart->type == typeExprNode::con && rightPart->value == 0.0f)
+        return;
 
+    // Создаём новый узел +
+    ExprNode* plusNode = new ExprNode();
+    plusNode->type = typeExprNode::plus;
+    // Левая часть переходит в + 
+    plusNode->operands.push_back(root->operands[0]);
+    // Правая часть переходит в + с отрицательным коэффициентом
+    rightPart->coefficient *= -1;
+    plusNode->operands.push_back(rightPart);
+    // Создаём новую константу 0 для правой части
+    ExprNode* zero = new ExprNode();
+    zero->type = typeExprNode::con;
+    zero->value = 0.0f;
+    // Строим потомков корня
+    root->operands[0] = plusNode;
+    root->operands[1] = zero;
 
-
+}
 
 int main(int argc, char* argv[])
 {
