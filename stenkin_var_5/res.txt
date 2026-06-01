@@ -1,29 +1,80 @@
-// Входное выражение
-digraph Input {
-    node9 [label="="];
-    node9 -> node3;
-    node3 [label="^"];
-    node3 -> node1;
-    node1 [label="a"];
-    node3 -> node2;
-    node2 [label="5.000000"];
-    node9 -> node8;
-    node8 [label="+"];
-    node8 -> node6;
-    node6 [label="^"];
-    node6 -> node4;
-    node4 [label="a"];
-    node6 -> node5;
-    node5 [label="5.000000"];
-    node8 -> node7;
-    node7 [label="b"];
-}
+int main(int argc, char* argv[])
+{
+    SetConsoleCP(1251);
+    SetConsoleOutputCP(1251);
 
-// Результат
-digraph Output {
-    node9 [label="="];
-    node9 -> node10;
-    node10 [label="b\ncoef=-1"];
-    node9 -> node11;
-    node11 [label="0.000000"];
+    std::string inputPath, outputPath;
+
+    std::cout << "Введите путь к входному файлу: ";
+    std::getline(std::cin, inputPath);
+
+    std::cout << "Введите путь к выходному файлу: ";
+    std::getline(std::cin, outputPath);
+
+    // Читаем входной файл
+    std::ifstream inputFile(inputPath);
+    if (!inputFile.is_open())
+    {
+        std::vector<Error> dummy;
+        dummy.push_back(Error(ErrorType::FileNotExist, 0, inputPath));
+        std::cout << formatAllErrors(dummy);
+        return 1;
+    }
+
+    std::string rpnString;
+    std::getline(inputFile, rpnString);
+    inputFile.close();
+
+    if (rpnString.empty())
+    {
+        std::vector<Error> dummy;
+        dummy.push_back(Error(ErrorType::FileEmpty, 0, ""));
+        std::cout << formatAllErrors(dummy);
+        return 1;
+    }
+
+    // Строим дерево
+    ExprNode* root = nullptr;
+    std::vector<Error> errors;
+
+    if (!buildTree(rpnString, root, errors))
+    {
+        std::cout << formatAllErrors(errors);
+        return 1;
+    }
+
+    // Открываем выходной файл
+    std::ofstream outFile(outputPath);
+    if (!outFile.is_open())
+    {
+        std::vector<Error> dummy;
+        dummy.push_back(Error(ErrorType::OutFileCreateFail, 0, outputPath));
+        std::cout << formatAllErrors(dummy);
+        freeTree(root);
+        return 1;
+    }
+
+    // Записываем входное дерево
+    outFile << "// Входное выражение\n";
+    outFile << "digraph Input {\n";
+    generateDotParams(root, outFile);
+    outFile << "}\n\n";
+
+    // Преобразования
+    moveTermsToLeft(root);
+    transformTree(root);
+    sortTree(root);
+    simplifyTree(root);
+
+    // Записываем результирующее дерево
+    outFile << "// Результат\n";
+    outFile << "digraph Output {\n";
+    generateDotParams(root, outFile);
+    outFile << "}\n";
+
+    outFile.close();
+    freeTree(root);
+
+    std::cout << "Готово. Результат записан в: " << outputPath << "\n";
+    return 0;
 }

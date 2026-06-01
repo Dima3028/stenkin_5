@@ -1171,5 +1171,76 @@ int main(int argc, char* argv[])
     SetConsoleCP(1251);
     SetConsoleOutputCP(1251);
 
+    std::string inputPath, outputPath;
+    std::cout << "Введите путь к входному файлу: ";
+    std::getline(std::cin, inputPath);
+    std::cout << "Введите путь к выходному файлу: ";
+    std::getline(std::cin, outputPath);
+
+    // Получение входных данных
+    std::ifstream inputFile(inputPath);
+    if (!inputFile.is_open())
+    {
+        std::vector<Error> error;
+        error.push_back(Error(ErrorType::FileNotExist, 0, inputPath));
+        std::cout << formatAllErrors(error);
+        return 1;
+    }
+
+    std::string rpnString;
+    std::getline(inputFile, rpnString);
+    inputFile.close();
+
+    // Если файл пуст
+    if (rpnString.empty())
+    {
+        std::vector<Error> error;
+        error.push_back(Error(ErrorType::FileEmpty, 0, ""));
+        std::cout << formatAllErrors(error);
+        return 1;
+    }
+
+    // Построение дерева
+    ExprNode* root = nullptr;
+    std::vector<Error> errors;
+
+    if (!buildTree(rpnString, root, errors))
+    {
+        std::cout << formatAllErrors(errors);
+        return 1;
+    }
+
+    // Создание файлы выходв
+    std::ofstream outFile(outputPath);
+    if (!outFile.is_open())
+    {
+        std::vector<Error> error;
+        error.push_back(Error(ErrorType::OutFileCreateFail, 0, outputPath));
+        std::cout << formatAllErrors(error);
+        freeTree(root);
+        return 1;
+    }
+
+    // Фиксация входного дерева
+    outFile << "// Входное выражение\n";
+    outFile << "digraph Input {\n";
+    generateDotParams(root, outFile);
+    outFile << "}\n\n";
+
+    // Преобразования
+    moveTermsToLeft(root);
+    transformTree(root);
+    sortTree(root);
+    simplifyTree(root);
+
+    // Фиксация выходного дерева
+    outFile << "// Результат\n";
+    outFile << "digraph Output {\n";
+    generateDotParams(root, outFile);
+    outFile << "}\n";
+    outFile.close();
+    freeTree(root);
+
+    std::cout << "Готово. Результат записан в: " << outputPath << "\n";
     return 0;
 }
