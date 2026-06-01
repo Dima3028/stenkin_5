@@ -614,8 +614,10 @@ namespace Tests
             int counterBefore = ExprNode::globalIdCounter;
             ExprNode* ptr = nullptr;
             simplifyTree(ptr);
+            ExprNode* expected = nullptr;
             Assert::AreEqual(counterBefore, ExprNode::globalIdCounter,
                 L"При nullptr новые узлы создаваться не должны.");
+            Assert::IsTrue(areTreesEqual(ptr, expected), L"NULL");
         }
 
         TEST_METHOD(testNestedPow)

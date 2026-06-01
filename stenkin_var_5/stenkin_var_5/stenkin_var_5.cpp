@@ -82,6 +82,7 @@ bool ExprNode::operator<(const ExprNode& other) const
     return (int)this->type < (int)other.type;
 }
 
+// Функция сортировки дерева
 void sortTree(ExprNode* node)
 {
     if (!node) return;
@@ -103,6 +104,7 @@ void sortTree(ExprNode* node)
     }
 }
 
+// Функция формирования сообщения об ошибке
 std::string Error::generateErrorMessage() const
 {
     switch (type)
@@ -142,6 +144,7 @@ std::string Error::generateErrorMessage() const
     }
 }
 
+// Функция составления сообщения об ошибках
 std::string formatAllErrors(const std::vector<Error>& errorList)
 {
     if (errorList.empty())
@@ -219,6 +222,7 @@ std::string opToString(typeExprNode type)
     }
 }
 
+// Фнукция формирования строки с данными для графового файла
 void generateDotParams(const ExprNode* node, std::ofstream& outFile)
 {
     if (!node) return;
@@ -255,6 +259,7 @@ void generateDotParams(const ExprNode* node, std::ofstream& outFile)
     }
 }
 
+// Функция генерации файлы для графа
 void generateDotFile(const ExprNode* root, const std::string& filename)
 {
     if (!root)
@@ -274,6 +279,7 @@ void generateDotFile(const ExprNode* root, const std::string& filename)
     outFile.close();
 }
 
+// Функция разбиения строки на массив лексем
 std::vector<std::string> tokenizeRPN(const std::string& rpnString)
 {
     // 1. Инициализировать пустой массив строк tokens
@@ -348,6 +354,7 @@ void freeTree(ExprNode* node)
     delete node;
 }
 
+// Функция построения дерева из строки
 bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>& errors)
 {
     if (rpnString.length() > 500)
@@ -496,53 +503,41 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
             
             else if (token == "^")
             {
-                //ОГРАНИЧЕНИЕ: База не поддерживается для не одиночных переменных или не констант
-                if (left->type != typeExprNode::var && left->type != typeExprNode::con)
+                //ОГРАНИЧЕНИЕ: База не поддерживается для не одиночных переменных или не констант или не степеней
+                if (left->type != typeExprNode::var &&
+                    left->type != typeExprNode::con &&
+                    left->type != typeExprNode::pow)
                 {
                     errors.push_back(Error(ErrorType::InvalidOperands, pos, token));
-                    freeTree(left); 
-                    freeTree(right); 
-                    clearStack(); 
-                    return false;
+                    freeTree(left); freeTree(right); clearStack(); return false;
                 }
 
-                //ОГРАНИЧЕНИЕ: Показатель степени - константа (натуральное число <= 100)
-                if (right->type != typeExprNode::con)
+                //ОГРАНИЧЕНИЕ: Показатель степени - константа (натуральное число <= 100) или степень
+                if (right->type != typeExprNode::con &&
+                    right->type != typeExprNode::pow)
                 {
                     errors.push_back(Error(ErrorType::InvalidOperands, pos, token));
-                    freeTree(left); 
-                    freeTree(right); 
-                    clearStack(); 
-                    return false;
+                    freeTree(left); freeTree(right); clearStack(); return false;
                 }
-
-                int powerVal = (int)right->value;
-
-                //ОГРАНИЧЕНИЕ: Показатель степени меньше или равен 0
-                if (powerVal < 0)
+                //ОГРАНИЧЕНИЯ для показателя степени
+                if (right->type == typeExprNode::con)
                 {
-                    errors.push_back(Error(ErrorType::NegativePower, pos, token));
-                    freeTree(left); 
-                    freeTree(right); 
-                    clearStack(); 
-                    return false;
-                }
-                if (powerVal == 0) 
-                {
-                    errors.push_back(Error(ErrorType::InvalidOperands, pos, token));
-                    freeTree(left); 
-                    freeTree(right); 
-                    clearStack(); 
-                    return false;
-                }
-                //ОГРАНИЧЕНИЕ: Показатель степени больше 100
-                if (powerVal > 100)
-                {
-                    errors.push_back(Error(ErrorType::OutOfRange, pos, token));
-                    freeTree(left); 
-                    freeTree(right); 
-                    clearStack();
-                    return false;
+                    int powerVal = (int)right->value;
+                    if (powerVal < 0)
+                    {
+                        errors.push_back(Error(ErrorType::NegativePower, pos, token));
+                        freeTree(left); freeTree(right); clearStack(); return false;
+                    }
+                    if (powerVal == 0)
+                    {
+                        errors.push_back(Error(ErrorType::InvalidOperands, pos, token));
+                        freeTree(left); freeTree(right); clearStack(); return false;
+                    }
+                    if (powerVal > 100)
+                    {
+                        errors.push_back(Error(ErrorType::OutOfRange, pos, token));
+                        freeTree(left); freeTree(right); clearStack(); return false;
+                    }
                 }
             }
 
