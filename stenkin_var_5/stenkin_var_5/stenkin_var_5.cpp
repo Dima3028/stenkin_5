@@ -8,16 +8,25 @@
 #include <cctype>
 #include "Header.h" 
 #include <algorithm>
+#include <set>
 
+//Глобальный счетчик узлов для дот файла
 int ExprNode::globalIdCounter = 0;
 
-Error::Error(ErrorType errorType, int errorPosition, std::string lexemText)
+//Все бинарные операции
+static const std::set<std::string> binaryOperatorTokens =
+{ "+", "-", "*", "/", "^", "=", "<", ">", "<=", ">=" };
+
+//Все операции сравнения
+static const std::set<std::string> relationTokens =
+{ "=", "<", ">", "<=", ">=" };
+
+//Конструктор для ошибки
+Error::Error (ErrorType errorType, int errorPosition, const std::string& lexemText): type(errorType), position(errorPosition), invalidLexem(lexemText)
 {
-    type = errorType;
-    position = errorPosition;
-    invalidLexem = lexemText;
 }
 
+//Конструктор для узла выражения
 ExprNode::ExprNode()
 {
     id = ++globalIdCounter;
@@ -143,15 +152,19 @@ std::string Error::generateErrorMessage() const
 // Функция составления сообщения об ошибках
 std::string formatAllErrors(const std::vector<Error>& errorList)
 {
+    //Если строка пустая
     if (errorList.empty())
     {
+        //Нет ошибок
         return "Проверка завершена. Ошибок не обнаружено.\n";
     }
 
+    //Иначе выводим ошибки
     std::string fullReport = "========================================\n";
     fullReport += "ВНИМАНИЕ! Обнаружено ошибок: " + std::to_string(errorList.size()) + "\n";
     fullReport += "========================================\n";
 
+    //Формирование строки с каждой ошибкой
     for (const auto& currentError : errorList)
     {
         fullReport += "Лексема: '" + currentError.invalidLexem + "'\n";
@@ -170,32 +183,44 @@ bool areTreesEqual(const ExprNode* node1, const ExprNode* node2, bool ignoreCoef
     if (!ignoreCoef)
     {
         if (node1 && node2 && node1->hashValue != node2->hashValue)
+            //деревья разные
             return false;
     }
 
     if (node1 == node2)         // оба nullptr или один и тот же указатель
         return true;
 
-    if (!node1 || !node2)
+    if (!node1 || !node2) //Если один из указателей пуст, а другой нет
+        //деревья разные
         return false;
 
+    //Если не совпадает тип
+    //или не совпадает имя
+    //или не совпадает значение
     if (node1->type != node2->type ||
         node1->varName != node2->varName ||
         node1->value != node2->value)
+        //деревья разные 
         return false;
-
+    //При проверке коеффициентов, если они неравны
     if (!ignoreCoef && node1->coefficient != node2->coefficient)
+        //деревья разные
         return false;
-
+    
+    //Если разное кол-во потомков
     if (node1->operands.size() != node2->operands.size())
+        //деревья разные
         return false;
 
+    //Если потомки не совпадают
     for (size_t i = 0; i < node1->operands.size(); ++i)
     {
         if (!areTreesEqual(node1->operands[i], node2->operands[i], ignoreCoef))
+            //деревья разные
             return false;
     }
 
+    //Иначе деревья одиннаковые
     return true;
 }
 
@@ -222,30 +247,42 @@ std::string opToString(typeExprNode type)
 // Фнукция формирования строки с данными для графового файла
 void generateDotParams(const ExprNode* node, std::ofstream& outFile)
 {
+    // Если узел пустой — выходим
     if (!node) return;
 
+    //Формируем подпись узла
     std::string label;
+    //Если переменная
     if (node->type == typeExprNode::var)
     {
+        //Берем ее имя 
         label = node->varName;
+        //Учитываем коэф, если есть
         if (node->coefficient != 1)
             label += "\\ncoef=" + std::to_string(node->coefficient);
     }
+    //Если число
     else if (node->type == typeExprNode::con)
     {
+        //Берем его значение
         label = std::to_string(node->value);
+        //Учитываем коэф, если есть
         if (node->coefficient != 1)
             label += "\\ncoef=" + std::to_string(node->coefficient);
     }
+    //Иначе операция
     else
     {
+        //Берем ее тип
         label = opToString(node->type);
+        //Учитываем коэф, если есть
         if (node->coefficient != 1)
             label += "\\ncoef=" + std::to_string(node->coefficient);
     }
 
     outFile << "    node" << node->id << " [label=\"" << label << "\"];\n";
 
+    //Для всех потомков повторить
     for (const ExprNode* child : node->operands)
     {
         if (child)
@@ -257,24 +294,39 @@ void generateDotParams(const ExprNode* node, std::ofstream& outFile)
 }
 
 // Функция генерации файлы для графа
-void generateDotFile(const ExprNode* root, const std::string& filename)
+void generateDotFile(const ExprNode* root, const std::string& filename, bool append)
 {
     if (!root)
     {
         return;
     }
 
-    std::ofstream outFile(filename);
+    std::ofstream outFile;
+
+    if (append == true)
+    {
+        //Открываем файл в режиме дозаписи, текст добавится в конец
+        outFile.open(filename, std::ios::app);
+    }
+    else
+    {
+        // Открываем файл заново, старое содержимое стирается
+        outFile.open(filename);
+    }
+
+    //Если нет доступа к файлу, выходим
     if (!outFile.is_open())
     {
         return;
     }
 
+    //Запись дерева
     outFile << "digraph ExpressionTree {\n";
     generateDotParams(root, outFile);
     outFile << "}\n";
     outFile.close();
 }
+
 
 // Функция разбиения строки на массив лексем
 std::vector<std::string> tokenizeRPN(const std::string& rpnString)
@@ -312,17 +364,21 @@ bool isVar(const std::string& token)
 //Вспомогательная функция проверки: является ли строка константой (целое число)
 bool isCon(const std::string& token, int& val)
 {
+    //Если пустая, то нет
     if (token.empty()) return false;
     size_t start = 0;
+    //Проверяем наличие знака
     if (token[0] == '-' || token[0] == '+')
     {
         if (token.length() == 1) return false;
         start = 1;
     }
+    //Проверяем дальнейшее число в строке
     for (size_t i = start; i < token.length(); ++i)
     {
         if (!isdigit(token[i])) return false;
     }
+    //Пытаемся преобразовать
     try
     {
         val = std::stoi(token);
@@ -337,270 +393,353 @@ bool isCon(const std::string& token, int& val)
 //Функция очистки памяти
 void freeTree(ExprNode* node)
 {
+    //Если узел пуст, то конец
     if (node == nullptr)
     {
         return;
     }
-
+    //Для всех потомков повторить
     for (ExprNode* child : node->operands)
     {
         freeTree(child);
     }
-
+    //Удалить узел
     node->operands.clear();
     delete node;
 }
 
-// Функция построения дерева из строки
-bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>& errors)
+// Проверка длины входной строки
+bool validateInputLength(const std::string& rpnString, std::vector<Error>& errors)
 {
     if (rpnString.length() > 500)
     {
         errors.push_back(Error(ErrorType::UnsupportedChar, 500, "Строка > 500"));
         return false;
     }
+    return true;
+}
 
-    // 1. Вызвать tokenizeRPN и получить массив из строки
-    std::vector<std::string> tokens = tokenizeRPN(rpnString);
-
-    // 2. Если последняя лексема в массиве НЕ является знаком сравнения
+// Проверка, что выражение заканчивается знаком сравнения (=, <, > и т.д.)
+void validateRelationPresence(const std::vector<std::string>& tokens,
+    const std::string& rpnString, std::vector<Error>& errors)
+{
+    //Если массив не пуст
     if (!tokens.empty())
     {
+        //Проверить, что полседняя лексема это операция сравнения
         const std::string& lastToken = tokens.back();
         if (lastToken != "=" && lastToken != "<" && lastToken != ">" &&
             lastToken != "<=" && lastToken != ">=")
         {
-            // 2.1. Зафиксировать ошибку MissingRelation
-            errors.push_back(Error(ErrorType::MissingRelation, (int) (rpnString.length()), ""));
+            errors.push_back(Error(ErrorType::MissingRelation, (int)(rpnString.length()), ""));
         }
     }
     else
     {
         errors.push_back(Error(ErrorType::MissingRelation, 0, ""));
     }
+}
 
-    // 3. Инициализировать пустой стек указателей на ExprNode
+// Обработка лексемы-операнда
+bool handleOperandToken(const std::string& token, int pos,
+    std::stack<ExprNode*>& st, std::vector<Error>& errors)
+{
+    int conVal = 0;
+    //Если число, проверяем допустимые пределы
+    if (isCon(token, conVal))
+    {
+        if (conVal < -1000 || conVal > 1000)
+        {
+            errors.push_back(Error(ErrorType::OutOfRange, pos, token));
+            return false;
+        }
+    }
+    //Создаем новый узел и заполняем в зависимости от типа
+    ExprNode* node = new ExprNode();
+    if (isVar(token))
+    {
+        node->type = typeExprNode::var;
+        node->varName = token;
+    }
+    else
+    {
+        node->type = typeExprNode::con;
+        node->value = (float)conVal;
+    }
+    st.push(node);
+    return true;
+}
+
+// Обработка унарного минуса (_-)
+bool handleUnaryMinusToken(const std::string& token, int pos,
+    std::stack<ExprNode*>& st, std::vector<Error>& errors)
+{
+    //Если стек пуст — минус не к чему применить
+    if (st.empty())
+    {
+        errors.push_back(Error(ErrorType::NotEnoughOperands, pos, token));
+        return false;
+    }
+    
+    //Создаем новый узел с потомком
+    ExprNode* operand = st.top();
+    st.pop();
+
+    ExprNode* node = new ExprNode();
+    node->type = typeExprNode::u_minus;
+    node->operands.push_back(operand);
+    st.push(node);
+    return true;
+}
+
+// Проверка ограничений для операции возведения в степень
+bool validatePowerOperands(const ExprNode* left, const ExprNode* right,
+    int pos, std::vector<Error>& errors)
+{
+    //Проверяем базу степени (левый операнд)
+    if (left->type != typeExprNode::var &&
+        left->type != typeExprNode::con &&
+        left->type != typeExprNode::pow)
+    {
+        errors.push_back(Error(ErrorType::InvalidOperands, pos, "^"));
+        return false;
+    }
+
+    //Проверяем показатель степени (правый операнд)
+    if (right->type != typeExprNode::con &&
+        right->type != typeExprNode::pow)
+    {
+        errors.push_back(Error(ErrorType::InvalidOperands, pos, "^"));
+        return false;
+    }
+
+    //Если показатель — константа, проверяем её диапазон
+    if (right->type == typeExprNode::con)
+    {
+        int powerVal = (int)right->value;
+        if (powerVal < 0)
+        {
+            errors.push_back(Error(ErrorType::NegativePower, pos, "^"));
+            return false;
+        }
+        if (powerVal == 0)
+        {
+            errors.push_back(Error(ErrorType::InvalidOperands, pos, "^"));
+            return false;
+        }
+        if (powerVal > 100)
+        {
+            errors.push_back(Error(ErrorType::OutOfRange, pos, "^"));
+            return false;
+        }
+    }
+    return true;
+}
+
+// Переводит строковый символ операции в тип узла дерева
+typeExprNode tokenToNodeType(const std::string& token)
+{
+    if (token == "+")  return typeExprNode::plus;
+    if (token == "-")  return typeExprNode::minus;
+    if (token == "*")  return typeExprNode::mul;
+    if (token == "/")  return typeExprNode::div;
+    if (token == "^")  return typeExprNode::pow;
+    if (token == "=")  return typeExprNode::eq;
+    if (token == "<")  return typeExprNode::lt;
+    if (token == ">")  return typeExprNode::gt;
+    if (token == "<=") return typeExprNode::le;
+    return typeExprNode::ge;
+}
+
+// Считает количество знаков сравнения и проверяет, что их не больше одного
+bool checkRelationLimit(const std::string& token, int pos,
+    int& relationCount, std::vector<Error>& errors)
+{
+    //Если токен вообще не знак сравнения
+    if (relationTokens.count(token) == 0)
+        return true;
+    //Токен оказался знаком сравнения 
+    relationCount++;
+    //Если это уже второй (или более) знак сравнения — ошибка
+    if (relationCount > 1)
+    {
+        errors.push_back(Error(ErrorType::MultipleRelations, pos, token));
+        return false;
+    }
+    return true;
+}
+
+// Проверяет операнды бинарной операции в зависимости от её вида
+bool validateOperandsForOperator(const std::string& token, const ExprNode* left,
+    const ExprNode* right, int pos, std::vector<Error>& errors)
+{
+    //Деление - проверяем, что знаменатель не равен константе 0
+    if (token == "/")
+    {
+        if (right->type == typeExprNode::con && right->value == 0.0f)
+        {
+            errors.push_back(Error(ErrorType::DivideByZero, pos, token));
+            return false;
+        }
+        return true;
+    }
+    //Степень 
+    if (token == "^")
+        return validatePowerOperands(left, right, pos, errors);
+
+    return true;
+}
+
+// Обработка бинарной операции или знака сравнения
+bool handleBinaryOperatorToken(const std::string& token, int pos,
+    std::stack<ExprNode*>& st, int& relationCount, std::vector<Error>& errors)
+{
+    //Считаем знаки сравнения
+    if (!checkRelationLimit(token, pos, relationCount, errors))
+        return false;
+
+    //Проверяем кол-во операторов
+    if (st.size() < 2)
+    {
+        errors.push_back(Error(ErrorType::NotEnoughOperands, pos, token));
+        return false;
+    }
+
+    //Достаем операдны
+    // Сначала правый
+    ExprNode* right = st.top(); st.pop();
+    //Затем левый
+    ExprNode* left = st.top(); st.pop();
+
+    //Проверяем операнды на ошибки
+    if (!validateOperandsForOperator(token, left, right, pos, errors))
+    {
+        freeTree(left);
+        freeTree(right);
+        return false;
+    }
+    
+    //Создаем узел
+    ExprNode* node = new ExprNode();
+    node->type = tokenToNodeType(token);
+    node->operands.push_back(left);
+    node->operands.push_back(right);
+    st.push(node);
+    return true;
+}
+
+// Обработка некорректной лексемы
+void handleInvalidToken(const std::string& token, int pos, std::vector<Error>& errors)
+{
+    bool isLettersOnly = true;
+    for (char c : token) { if (!isalpha(c)) isLettersOnly = false; }
+
+    if (isLettersOnly)
+    {
+        errors.push_back(Error(ErrorType::InvalidVarName, pos, token));
+    }
+    else
+    {
+        errors.push_back(Error(ErrorType::UnsupportedChar, pos, token));
+    }
+}
+
+
+// Определяет тип текущей лексемы и вызывает нужный обработчик
+bool processToken(const std::string& token, int pos, std::stack<ExprNode*>& st, int& relationCount, int& opCount, std::vector<Error>& errors)
+{
+    int conVal = 0;
+
+    //Лексема — переменная или константа (операнд)
+    if (isVar(token) || isCon(token, conVal))
+        return handleOperandToken(token, pos, st, errors);
+
+    //Лексема — унарный минус
+    if (token == "_-")
+    {
+        opCount++;
+        return handleUnaryMinusToken(token, pos, st, errors);
+    }
+
+    //Лексема — бинарная операция или знак сравнения
+    if (binaryOperatorTokens.count(token) > 0)
+    {
+        opCount++;
+        return handleBinaryOperatorToken(token, pos, st, relationCount, errors);
+    }
+
+    //Остальные случаи - ошибка
+    handleInvalidToken(token, pos, errors);
+    return false;
+}
+
+//Функция построения бинарного дерева из строки
+bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>& errors)
+{
+    //Проверка длины строки
+    if (!validateInputLength(rpnString, errors))
+        return false;
+
+    //Разбие строик на лексемы
+    std::vector<std::string> tokens = tokenizeRPN(rpnString);
+
+    //Проверка, что последний знак -  операция сравнения
+    validateRelationPresence(tokens, rpnString, errors);
+
     std::stack<ExprNode*> st;
 
-    // Лямбда функция очистки стека
-    auto clearStack = [&st]() 
+    //Лямбда для очистки стека при ошибке, освобождает память всех узлов
+    auto clearStack = [&st]()
         {
-        while (!st.empty()) 
-        {
-            freeTree(st.top());
-            st.pop();
-        }
+            while (!st.empty())
+            {
+                freeTree(st.top());
+                st.pop();
+            }
         };
 
     int currentPos = 0;
-    int relationCount = 0; 
-    int opCount = 0;       
+    int relationCount = 0;
+    int opCount = 0;
 
-    // 4. В цикле по массиву лексем с начала до конца:
+    // Обработка всех лексем
     for (const std::string& token : tokens)
     {
-        currentPos = rpnString.find(token, currentPos);
-        int pos = (int) currentPos;
-        currentPos += token.length();
+        currentPos = (int)rpnString.find(token, currentPos);
+        int pos = currentPos;
+        currentPos += (int)token.length();
 
-        int conVal = 0;
-
-        // 4.1. Если лексема – переменная или константа:
-        if (isVar(token) || isCon(token, conVal))
+        //Обрабатываем лексему
+        // если возникла ошибка — прерываем разбор
+        if (!processToken(token, pos, st, relationCount, opCount, errors))
         {
-            if (isCon(token, conVal))
-            {
-                if (conVal < -1000 || conVal > 1000)
-                {
-                    errors.push_back(Error(ErrorType::OutOfRange, pos, token));
-                    clearStack(); 
-                    return false;
-                }
-            }
-
-            // 4.1.1. Создать узел и поместить в стек
-            ExprNode* node = new ExprNode();
-            if (isVar(token))
-            {
-                node->type = typeExprNode::var;
-                node->varName = token;
-            }
-            else
-            {
-                node->type = typeExprNode::con;
-                node->value = (float)conVal;
-            }
-            st.push(node);
-        }
-        // 4.2. Иначе если лексема – унарный минус:
-        else if (token == "_-")
-        {
-            opCount++; // Считаем операцию
-
-            // 4.2.1. Если стек пуст:
-            if (st.empty())
-            {
-                errors.push_back(Error(ErrorType::NotEnoughOperands, pos, token));
-                clearStack(); 
-                return false;
-            }
-            // 4.2.2. Достать один элемент из стека
-            ExprNode* operand = st.top();
-            st.pop();
-
-            // 4.2.3. Создать узел
-            ExprNode* node = new ExprNode();
-            node->type = typeExprNode::u_minus;
-            node->operands.push_back(operand);
-            st.push(node);
-        }
-        // 4.3. Иначе (лексема – бинарная операция или знак сравнения):
-        else if (token == "+" || token == "-" || token == "*" || token == "/" || token == "^" ||
-            token == "=" || token == "<" || token == ">" || token == "<=" || token == ">=")
-        {
-            opCount++; // Считаем операцию
-
-            if (token == "=" || token == "<" || token == ">" || token == "<=" || token == ">=")
-            {
-                relationCount++;
-                //ОГРАНИЧЕНИЕ: один оператор сравнения
-                if (relationCount > 1)
-                {
-                    errors.push_back(Error(ErrorType::MultipleRelations, pos, token));
-                    clearStack(); 
-                    return false;
-                }
-            }
-
-            // 4.3.1. Если в стеке меньше 2 элементов:
-            if (st.size() < 2)
-            {
-                errors.push_back(Error(ErrorType::NotEnoughOperands, pos, token));
-                clearStack(); 
-                return false;
-            }
-
-            //Извлекаем правый, затем левый операнд, потому что праавый появился в стеке после левого
-            ExprNode* right = st.top(); st.pop();
-            ExprNode* left = st.top(); st.pop();
-
-            
-            //Защита от деления на ноль
-            if (token == "/")
-            {
-                if (right->type == typeExprNode::con && right->value == 0.0f)
-                {
-                    errors.push_back(Error(ErrorType::DivideByZero, pos, token));
-                    freeTree(left); 
-                    freeTree(right); 
-                    clearStack(); 
-                    return false;
-                }
-            }
-            
-            else if (token == "^")
-            {
-                //ОГРАНИЧЕНИЕ: База не поддерживается для не одиночных переменных или не констант или не степеней
-                if (left->type != typeExprNode::var &&
-                    left->type != typeExprNode::con &&
-                    left->type != typeExprNode::pow)
-                {
-                    errors.push_back(Error(ErrorType::InvalidOperands, pos, token));
-                    freeTree(left); freeTree(right); clearStack(); return false;
-                }
-
-                //ОГРАНИЧЕНИЕ: Показатель степени - константа (натуральное число <= 100) или степень
-                if (right->type != typeExprNode::con &&
-                    right->type != typeExprNode::pow)
-                {
-                    errors.push_back(Error(ErrorType::InvalidOperands, pos, token));
-                    freeTree(left); freeTree(right); clearStack(); return false;
-                }
-                //ОГРАНИЧЕНИЯ для показателя степени
-                if (right->type == typeExprNode::con)
-                {
-                    int powerVal = (int)right->value;
-                    if (powerVal < 0)
-                    {
-                        errors.push_back(Error(ErrorType::NegativePower, pos, token));
-                        freeTree(left); freeTree(right); clearStack(); return false;
-                    }
-                    if (powerVal == 0)
-                    {
-                        errors.push_back(Error(ErrorType::InvalidOperands, pos, token));
-                        freeTree(left); freeTree(right); clearStack(); return false;
-                    }
-                    if (powerVal > 100)
-                    {
-                        errors.push_back(Error(ErrorType::OutOfRange, pos, token));
-                        freeTree(left); freeTree(right); clearStack(); return false;
-                    }
-                }
-            }
-
-            // 4.3.2. Создать новый узел бинарной операции
-            ExprNode* node = new ExprNode();
-            if (token == "+") node->type = typeExprNode::plus;
-            else if (token == "-") node->type = typeExprNode::minus;
-            else if (token == "*") node->type = typeExprNode::mul;
-            else if (token == "/") node->type = typeExprNode::div;
-            else if (token == "^") node->type = typeExprNode::pow;
-            else if (token == "=") node->type = typeExprNode::eq;
-            else if (token == "<") node->type = typeExprNode::lt;
-            else if (token == ">") node->type = typeExprNode::gt;
-            else if (token == "<=") node->type = typeExprNode::le;
-            else if (token == ">=") node->type = typeExprNode::ge;
-
-            // 4.3.5. Добавить первый операнд, а затем второй операнд
-            node->operands.push_back(left);
-            node->operands.push_back(right);
-
-            // 4.3.6. Поместить созданный узел в стек
-            st.push(node);
-        }
-        else
-        {
-            // Обработка неверных имен переменных
-            bool isLettersOnly = true;
-            for (char c : token) { if (!isalpha(c)) isLettersOnly = false; }
-
-            //ОГРАНИЧЕНИЕ: Переменные только одной строчной буквой 
-            if (isLettersOnly) 
-            {
-                errors.push_back(Error(ErrorType::InvalidVarName, pos, token));
-            }
-            else 
-            {
-                errors.push_back(Error(ErrorType::UnsupportedChar, pos, token));
-            }
-            clearStack(); 
+            clearStack();
             return false;
         }
 
-        //ОГРАНИЧЕНИЕ: Суммарное число операций не более 100
+        //Выход за предел операций - ошибка
         if (opCount > 100)
         {
             errors.push_back(Error(ErrorType::UnsupportedChar, pos, "OVER_OP_LIMIT"));
-            clearStack(); 
+            clearStack();
             return false;
         }
     }
 
-    // 6. Если в стеке осталось больше одного элемента И массив ошибок пуст:
+    // Если в стеке осталось больше 1 узла
     if (st.size() > 1 && errors.empty())
     {
-        // 6.1. Зафиксировать ошибку NotEnoughOperators
-        errors.push_back(Error(ErrorType::NotEnoughOperators, (int) rpnString.length(), ""));
+        errors.push_back(Error(ErrorType::NotEnoughOperators, (int)rpnString.length(), ""));
     }
 
-    // 7. Если массив ошибок не пуст:
+    //Если есть ошибки
     if (!errors.empty())
     {
         clearStack();
         return false;
     }
 
-    // 8. Присвоить единственный оставшийся в стеке элемент
+    //Если остался узел - он корень
     if (!st.empty())
     {
         root = st.top();
@@ -613,9 +752,12 @@ bool buildTree(const std::string& rpnString, ExprNode*& root, std::vector<Error>
 //Вычисление хеша
 void computeHash(ExprNode* node)
 {
+    //Если текущий узел пуст -	Прервать выполнение
     if (!node) return;
 
+    //В цикле для каждого дочернего узла 
     for (ExprNode* child : node->operands)
+        //Вызвать computeHash для дочернего узла 
         computeHash(child);
 
     std::hash<int> intHasher;
@@ -638,7 +780,7 @@ void computeHash(ExprNode* node)
     
     else
     {
-        for (ExprNode* child : node->operands)
+        for (const ExprNode* child : node->operands)
         {
             //Рассчет для узлов-операций "+", "*", как для коммутативных
             if (node->type == typeExprNode::plus || node->type == typeExprNode::mul)
@@ -655,95 +797,129 @@ void computeHash(ExprNode* node)
     }
 }
 
-// Функция трансформации дерева
+// Приводит унарный минус к отрицательному коэффициенту узла
+void normalizeUnaryMinus(ExprNode* node)
+{
+    //Если это не унарный минус — делать нечего
+    if (node->type != typeExprNode::u_minus)
+        return;
+
+    //Копируем содержимое ребёнка в текущий узел
+    ExprNode* child = node->operands[0];
+
+    node->type = child->type;
+    node->varName = child->varName;
+    node->value = child->value;
+    node->coefficient *= -1;
+
+    //Переносим детей ребёнка, если они были в текущий узел
+    node->operands.clear();
+    for (ExprNode* grandChild : child->operands)
+        node->operands.push_back(grandChild);
+
+    //Удаляем старый узел
+    child->operands.clear();
+    delete child;
+}
+
+// Приводит бинарный минус к сложению с отрицательным
+void normalizeBinaryMinus(ExprNode* node)
+{
+    if (node->type != typeExprNode::minus)
+        return;
+
+    //Меняем минус на +
+    node->type = typeExprNode::plus;
+    // Умножаем второй операнд на -1
+    node->operands[1]->coefficient *= -1;
+}
+
+// Приводит двойное деление к делению на произведение делителей
+void normalizeNestedDivision(ExprNode* node)
+{
+    if (node->type != typeExprNode::div ||
+        node->operands[0]->type != typeExprNode::div)
+        return;
+
+    ExprNode* innerDiv = node->operands[0];
+
+    //Создаём новый узел "*" для объединения двух делителей в один
+    ExprNode* mulNode = new ExprNode();
+    mulNode->type = typeExprNode::mul;
+    mulNode->operands.push_back(innerDiv->operands[1]);
+    mulNode->operands.push_back(node->operands[1]);
+    //Числитель внутреннего div становится новым числителем
+    node->operands[0] = innerDiv->operands[0];
+    //знаменателем теперь становится произведение двух делителей
+    node->operands[1] = mulNode;
+
+    innerDiv->operands.clear();
+    delete innerDiv;
+    //Дальнейшая нормализация
+    transformTree(mulNode);
+}
+
+// Переносит потомков дочернего узла на уровень выше, если его тип
+//совпадает с типом текущего узла 
+void flattenAssociativeOperands(ExprNode* node)
+{
+    //Работаем только с коммутативными операции +  и *
+    if (node->type != typeExprNode::plus && node->type != typeExprNode::mul)
+        return;
+
+    std::vector<ExprNode*> newChild;
+
+    //Проходим по всем текущим операндам узла
+    for (ExprNode* child : node->operands)
+    {
+        if (child->type == node->type)
+        {
+            //Если +
+            if (node->type == typeExprNode::plus)
+            {
+                //Домножаем коэф потомков на текущий
+                for (ExprNode* grandChild : child->operands)
+                    grandChild->coefficient *= child->coefficient;
+            }
+            else
+            {
+                //Для умножения переносим
+                node->coefficient *= child->coefficient;
+            }
+
+            //ПОднимаем узлы на уровень выше
+            for (ExprNode* grandChild : child->operands)
+                newChild.push_back(grandChild);
+
+            //Удаляем п=лишнее
+            child->operands.clear();
+            delete child;
+        }
+        else
+        {
+            newChild.push_back(child);
+        }
+    }
+
+    node->operands = newChild;
+}
+
+// Функция преобразования дерева в н-арное с упрощениями
 void transformTree(ExprNode* node)
 {
     if (!node) return;
 
-    //Рекурсивынй спуск
+    //Рекурсивный спуск
     for (ExprNode* child : node->operands)
         transformTree(child);
 
-    //Приведение унарного минуса к отрицательному коэфициенту узла
-    if (node->type == typeExprNode::u_minus)
-    {
-        ExprNode* child = node->operands[0];
+    //Шаги преобразования
+    normalizeUnaryMinus(node);
+    normalizeBinaryMinus(node);
+    normalizeNestedDivision(node);
+    flattenAssociativeOperands(node);
 
-        node->type = child->type;
-        node->varName = child->varName;
-        node->value = child->value;
-        node->coefficient *= -1;
-
-        node->operands.clear();
-        for (ExprNode* grandChild : child->operands)
-            node->operands.push_back(grandChild);
-
-        child->operands.clear();
-        delete child;
-    }
-
-    //Приведение бинарного минуса к "+" и отрацитальному коэфициенту
-    if (node->type == typeExprNode::minus)
-    {
-        node->type = typeExprNode::plus;
-        node->operands[1]->coefficient *= -1;
-    }
-
-    //Приведение двойного деления к делению на произведение делителей
-    if (node->type == typeExprNode::div &&
-        node->operands[0]->type == typeExprNode::div)
-    {
-        ExprNode* innerDiv = node->operands[0];
-
-        ExprNode* mulNode = new ExprNode();
-        mulNode->type = typeExprNode::mul;
-        mulNode->operands.push_back(innerDiv->operands[1]); // b
-        mulNode->operands.push_back(node->operands[1]);     // c
-
-        node->operands[0] = innerDiv->operands[0]; // a
-        node->operands[1] = mulNode;
-
-        innerDiv->operands.clear();
-        delete innerDiv;
-
-        transformTree(mulNode);
-    }
-
-    //Перенос детей на уровни выше, если типы операций совпадают для "+", "*"
-    if (node->type == typeExprNode::plus || node->type == typeExprNode::mul)
-    {
-        std::vector<ExprNode*> newChild;
-
-        for (ExprNode* child : node->operands)
-        {
-            if (child->type == node->type)
-            {
-                if (node->type == typeExprNode::plus)
-                {
-                    for (ExprNode* grandChild : child->operands)
-                        grandChild->coefficient *= child->coefficient;
-                }
-                else // mul
-                {
-                    node->coefficient *= child->coefficient;
-                }
-
-                for (ExprNode* grandChild : child->operands)
-                    newChild.push_back(grandChild);
-
-                child->operands.clear();
-                delete child;
-            }
-            else
-            {
-                newChild.push_back(child);
-            }
-        }
-
-        node->operands = newChild;
-    }
-
-    //Перерасчет хеша
+    //Вычислешие хэша
     computeHash(node);
 }
 
@@ -754,7 +930,7 @@ void simplifyPow(ExprNode*& node)
         return;
 
     ExprNode* leftOp = node->operands[0];
-    ExprNode* rightOp = node->operands[1];
+    const ExprNode* rightOp = node->operands[1];
     
     //Раскрытие вложенной степени 
     if (leftOp->type == typeExprNode::pow &&
@@ -765,8 +941,10 @@ void simplifyPow(ExprNode*& node)
         ExprNode* innerExp = leftOp->operands[1];
         float     outerVal = rightOp->value;
 
+        //Перемножаем показатели степеней
         innerExp->value *= outerVal;
 
+        //Удаляем лишнее
         freeTree(node->operands[1]);   
         leftOp->operands.clear();
         delete leftOp;                
@@ -778,7 +956,7 @@ void simplifyPow(ExprNode*& node)
         rightOp = node->operands[1];
     }
 
-    //Вычисление констант 
+    //Вычисление констант, при условии, что оба оператора константы
     if (leftOp->type == typeExprNode::con &&
         rightOp->type == typeExprNode::con)
     {
@@ -844,10 +1022,12 @@ bool mulHasZero(ExprNode* node)
     // Если в операндах умножения есть хоть один 0
     for (int i = 0; i < (int)node->operands.size(); ++i)
     {
-        ExprNode* child = node->operands[i];
+        const ExprNode* child = node->operands[i];
         if ((child->type == typeExprNode::con && child->value == 0.0f) || child->coefficient == 0)
+            //Вернуть правду
             return true;
     }
+    //Иначе ложь
     return false;
 }
 
@@ -855,9 +1035,12 @@ bool mulHasZero(ExprNode* node)
 void mulCollectCoefficients(ExprNode* node)
 {
     int totalCoef = node->coefficient;
+    //Для всех потомков
     for (int i = 0; i < (int)node->operands.size(); ++i)
     {
+        //Перемножаем коэфициент
         totalCoef *= node->operands[i]->coefficient;
+        //У потомков он становится = 1
         node->operands[i]->coefficient = 1;
     }
     node->coefficient = totalCoef;
@@ -870,13 +1053,17 @@ void mulMergeConstants(ExprNode* node)
     bool hadConst = false;
     std::vector<ExprNode*> nonConst;
 
+    // Для всех операндов
     for (int i = 0; i < (int)node->operands.size(); ++i)
     {
+        //Если константа 
         ExprNode* child = node->operands[i];
         if (child->type == typeExprNode::con)
         {
+            //Перемножаем
             constProduct *= child->value;
             hadConst = true;
+            //Удаляем
             freeTree(child);
         }
         else
@@ -886,8 +1073,10 @@ void mulMergeConstants(ExprNode* node)
     }
     node->operands = nonConst;
 
+    //Если были константы и итог не 1
     if (hadConst && constProduct != 1.0f)
     {
+        //Создаем новый узел константы
         ExprNode* constNode = new ExprNode();
         constNode->type = typeExprNode::con;
         constNode->value = constProduct;
@@ -901,14 +1090,17 @@ void mulGroupIntoPow(ExprNode* node)
     for (int i = 0; i < (int)node->operands.size(); )
     {
         int count = 1;
+        //Считать равные подряд идущих деревьев
         while (i + count < (int)node->operands.size() &&
             areTreesEqual(node->operands[i], node->operands[i + count]))
         {
             ++count;
         }
 
+        //Если есть равные
         if (count > 1)
         {
+            //Создать узел степени с показателем, равным кол-ву этих деревьев
             ExprNode* expConst = new ExprNode();
             expConst->type = typeExprNode::con;
             expConst->value = (float)count;
@@ -917,12 +1109,14 @@ void mulGroupIntoPow(ExprNode* node)
             powNode->operands.push_back(node->operands[i]);
             powNode->operands.push_back(expConst);
 
+            //Удалить повторяющиеся
             for (int k = 1; k < count; ++k)
                 freeTree(node->operands[i + k]);
 
             node->operands.erase(node->operands.begin() + i + 1, node->operands.begin() + i + count);
             node->operands[i] = powNode;
         }
+        //Перейти к следующему 
         ++i;
     }
 }
@@ -937,7 +1131,7 @@ void mulAbsorbConstantIntoCoef(ExprNode*& node)
     int       nonConstCount = 0;
     float     constProduct = 1.0f;
 
-    // Вычисление константы
+    // Проверка константы
     for (int i = 0; i < (int)node->operands.size(); ++i)
     {
         ExprNode* child = node->operands[i];
@@ -950,11 +1144,15 @@ void mulAbsorbConstantIntoCoef(ExprNode*& node)
         }
     }
 
+    //Если больше 1 константы или в узле нет переменных
     if (nonConstCount != 1 || node->operands.size() <= 1)
+        //Завершить
         return;
 
     int intConst = (int)constProduct;
+    //Если нецелое число
     if ((float)intConst != constProduct)
+        //Завершить
         return;
 
     // Удаляем константные узлы
@@ -965,7 +1163,7 @@ void mulAbsorbConstantIntoCoef(ExprNode*& node)
     }
     node->operands.clear();
 
-    // Поглощаем nonConstNode в текущий узел
+    // Поглощаем nonConstNode в текущий узел с коэффициентом
     node->type = nonConstNode->type;
     node->varName = nonConstNode->varName;
     node->value = nonConstNode->value;
@@ -991,6 +1189,7 @@ void simplifyMul(ExprNode*& node)
         node->type = typeExprNode::con;
         node->value = 0.0f;
         node->coefficient = 1;
+        //Необходим пересчет хэша, после переформирования узла
         computeHash(node);
         return;
     }
@@ -1008,8 +1207,10 @@ void plusMergeConstants(ExprNode* node)
     bool                   hadConst = false;
     std::vector<ExprNode*> nonConst;
 
+    //Для всех узлов
     for (int i = 0; i < (int)node->operands.size(); ++i)
     {
+        //Если число, то суммируем с учетом коэф и удаляем
         ExprNode* child = node->operands[i];
         if (child->type == typeExprNode::con)
         {
@@ -1024,8 +1225,10 @@ void plusMergeConstants(ExprNode* node)
     }
     node->operands = nonConst;
 
+    //Если константы были
     if (hadConst)
     {
+        //Создаем итоговую
         ExprNode* constNode = new ExprNode();
         constNode->type = typeExprNode::con;
         constNode->value = constSum;
@@ -1037,11 +1240,14 @@ void plusMergeConstants(ExprNode* node)
 void plusRemoveZeros(ExprNode* node)
 {
     std::vector<ExprNode*> filtered;
+    //Для всех операндов
     for (int i = 0; i < (int)node->operands.size(); ++i)
     {
         ExprNode* child = node->operands[i];
+        //Если число 0
         if ((child->type == typeExprNode::con && child->value == 0.0f) ||
             child->coefficient == 0)
+            //Удалить
             freeTree(child);
         else
             filtered.push_back(child);
@@ -1056,9 +1262,12 @@ void plusCombineLikeTerms(ExprNode* node)
     {
         for (int j = i + 1; j < (int)node->operands.size(); )
         {
+            //Если равны с учетом коэфициентов
             if (areTreesEqual(node->operands[i], node->operands[j], true))
             {
+                //Сложить их коэфициента
                 node->operands[i]->coefficient += node->operands[j]->coefficient;
+                //Удалить второе дерево
                 freeTree(node->operands[j]);
                 node->operands.erase(node->operands.begin() + j);
             }
@@ -1085,18 +1294,22 @@ void simplifyPlus(ExprNode* node)
 // Схлопывание пустых и одиночных узлов дерева
 void collapseNode(ExprNode*& node)
 {
+    //Удаляли опернды только в + и *, значит только они могут быть пустыми
     if (node->type != typeExprNode::plus && node->type != typeExprNode::mul)
         return;
 
     typeExprNode originalType = node->type;
 
+    //Если нет потомков
     if (node->operands.empty())
     {
         node->type = typeExprNode::con;
+        //Если +, Значит 0 (тк нейтрален для сложения)
         if (originalType == typeExprNode::plus)
         {
             node->value = 0.0f;
         }
+        //Иначе * и 1(тк нейтральна для *)
         else
         {
             node->value = 1.0f;
@@ -1104,8 +1317,10 @@ void collapseNode(ExprNode*& node)
         return;
     }
 
+    //Если один потомок
     if (node->operands.size() == 1)
     {
+        //Переносим его в текущий узел
         ExprNode* only = node->operands[0];
         node->type = only->type;
         node->varName = only->varName;
@@ -1124,13 +1339,24 @@ void simplifyTree(ExprNode*& node)
 
     for (int i = 0; i < (int)node->operands.size(); ++i) 
         simplifyTree(node->operands[i]);
-
+    //Упрощения степени
     simplifyPow(node);
+    //Упрощения деления
     simplifyDiv(node);
+    //Упрощения умножения
     simplifyMul(node);
+    //Упрощения сложения
     simplifyPlus(node);
+    //Удаляение пустых узлов после преобразований 
     collapseNode(node);
+    //Пересчет хэша, для повторных проходов
     computeHash(node);   
+
+    // Если MUL с единственным операндом схлопнулся в операцию возведения
+    // в степень, этот новый узел появился уже ПОСЛЕ того, 
+    // как simplifyPow для него отработал выше. Нужен повторный вызов
+    if (node->type == typeExprNode::pow)
+        simplifyPow(node);
 }
 
 // Функция переброски правой части в левую
@@ -1208,22 +1434,21 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    // Создание файлы выходв
-    std::ofstream outFile(outputPath);
-    if (!outFile.is_open())
+    // Проверка возможности записи в выходной файл
     {
-        std::vector<Error> error;
-        error.push_back(Error(ErrorType::OutFileCreateFail, 0, outputPath));
-        std::cout << formatAllErrors(error);
-        freeTree(root);
-        return 1;
+        std::ofstream testFile(outputPath);
+        if (!testFile.is_open())
+        {
+            std::vector<Error> error;
+            error.push_back(Error(ErrorType::OutFileCreateFail, 0, outputPath));
+            std::cout << formatAllErrors(error);
+            freeTree(root);
+            return 1;
+        }
     }
 
-    // Фиксация входного дерева
-    outFile << "// Входное выражение\n";
-    outFile << "digraph Input {\n";
-    generateDotParams(root, outFile);
-    outFile << "}\n\n";
+    // Фиксация исходного дерева 
+    generateDotFile(root, outputPath , false);
 
     // Преобразования
     moveTermsToLeft(root);
@@ -1231,12 +1456,9 @@ int main(int argc, char* argv[])
     sortTree(root);
     simplifyTree(root);
 
-    // Фиксация выходного дерева
-    outFile << "// Результат\n";
-    outFile << "digraph Output {\n";
-    generateDotParams(root, outFile);
-    outFile << "}\n";
-    outFile.close();
+    // Фиксация результирующего дерева 
+    generateDotFile(root, outputPath, true);
+
     freeTree(root);
 
     std::cout << "Готово. Результат записан в: " << outputPath << "\n";

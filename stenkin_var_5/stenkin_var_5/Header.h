@@ -92,7 +92,7 @@ public:
      * @param[in] pos Позиция ошибки в строке.
      * @param[in] lexem Невалидная лексема.
      */
-    Error(ErrorType t = ErrorType::NoError, int pos = -1, std::string lexem = "");
+    explicit Error(ErrorType t = ErrorType::NoError, int pos = -1, const std::string& lexem = "");
 
     /**
      * @brief Метод, генерирующий и возвращающий сообщение с подробным описанием ошибки.
@@ -162,8 +162,9 @@ void freeTree(ExprNode* node);
  * @brief Генерирует текстовый файл в формате DOT для визуализации структуры дерева.
  * @param[in] root Константный указатель на корень дерева, которое необходимо визуализировать.
  * @param[in] filename Строка с именем выходного файла (например, "expression_tree.dot").
+ * @param[in] append Флаг дозаписи в файл
  */
-void generateDotFile(const ExprNode* root, const std::string& filename);
+void generateDotFile(const ExprNode* root, const std::string& filename, bool append = false);
 
 /**
  * @brief Строит бинарное дерево на основе строки в обратной польской записи.
@@ -296,3 +297,165 @@ void collapseNode(ExprNode*& node);
  * @param[in,out] root Ссылка на указатель корневого узла.
  */
 void moveTermsToLeft(ExprNode*& root);
+
+/**
+ * @brief Переводит тип операции в его строковое представление.
+ * @param[in] type Тип узла 
+ * @return Строка с символом операции 
+ */
+std::string opToString(typeExprNode type);
+
+/**
+ * @brief Проверяет, является ли строка именем переменной.
+ * @param[in] token Проверяемая лексема.
+ * @return true, если token — корректное имя переменной.
+ */
+bool isVar(const std::string& token);
+
+/**
+ * @brief Проверяет, является ли строка целочисленной константой.
+ * @param[in]  token Проверяемая лексема.
+ * @param[out] val   Числовое значение константы, если token оказался числом.
+ * @return true, если token — целое число.
+ */
+bool isCon(const std::string& token, int& val);
+
+/**
+ * @brief Проверяет, что длина входной строки не превышает лимит в 500 символов.
+ * @param[in]  rpnString Входная строка с выражением.
+ * @param[out] errors    Вектор ошибок.
+ * @return true, если длина допустима.
+ */
+bool validateInputLength(const std::string& rpnString, std::vector<Error>& errors);
+
+/**
+ * @brief Проверяет, что последняя лексема выражения — знак сравнения.
+ * @param[in]  tokens  Массив лексем.
+ * @param[in]  rpnString Исходная строка.
+ * @param[out] errors Вектор ошибок.
+ */
+void validateRelationPresence(const std::vector<std::string>& tokens,
+    const std::string& rpnString, std::vector<Error>& errors);
+
+/**
+ * @brief Обрабатывает лексему-операнд при построении дерева.
+ * Создаёт соответствующий узел и кладёт его в стек разбора.
+ * @param[in]     token  Лексема операнда.
+ * @param[in]     pos    Позиция лексемы во входной строке.
+ * @param[in,out] st     Стек узлов разбора.
+ * @param[out]    errors Вектор ошибок.
+ * @return true, если операнд корректен и помещён в стек.
+ */
+bool handleOperandToken(const std::string& token, int pos,
+    std::stack<ExprNode*>& st, std::vector<Error>& errors);
+
+/**
+ * @brief Обрабатывает лексему унарного минуса при построении дерева.
+ * Берёт один операнд со стека и оборачивает его в узел типа u_minus.
+ * @param[in]   token  Лексема.
+ * @param[in]   pos   Позиция лексемы во входной строке.
+ * @param[in,out] st    Стек узлов разбора.
+ * @param[out]  errors Вектор ошибок.
+ * @return true, если операция применена успешно.
+ */
+bool handleUnaryMinusToken(const std::string& token, int pos,
+    std::stack<ExprNode*>& st, std::vector<Error>& errors);
+
+/**
+ * @brief Проверяет ограничения операции возведения в степень.
+ * @param[in]  left   Левый операнд (база степени).
+ * @param[in]  right  Правый операнд (показатель степени).
+ * @param[in]  pos    Позиция лексемы "^" во входной строке.
+ * @param[out] errors Вектор ошибок.
+ * @return true, если операнды допустимы.
+ */
+bool validatePowerOperands(const ExprNode* left, const ExprNode* right,
+    int pos, std::vector<Error>& errors);
+
+/**
+ * @brief Переводит строковый токен бинарной операции/знака сравнения в тип узла.
+ * @param[in] token Лексема операции.
+ * @return Соответствующее значение typeExprNode.
+ */
+typeExprNode tokenToNodeType(const std::string& token);
+
+/**
+ * @brief Считает встреченные знаки сравнения и проверяет ограничение, что не более одного.
+ * @param[in] token    Текущая лексема.
+ * @param[in] pos     Позиция лексемы во входной строке.
+ * @param[in,out] relationCount Счётчик встреченных знаков сравнения.
+ * @param[out]  errors     Вектор ошибок.
+ * @return true, если ограничение не нарушено.
+ */
+bool checkRelationLimit(const std::string& token, int pos,
+    int& relationCount, std::vector<Error>& errors);
+
+/**
+ * @brief Проверяет операнды бинарной операции в зависимости от её вида
+ * @param[in] token Лексема операции.
+ * @param[in] left  Левый операнд.
+ * @param[in] right  Правый операнд.
+ * @param[in] pos  Позиция лексемы во входной строке.
+ * @param[out] errors Вектор ошибок.
+ * @return true, если операнды допустимы.
+ */
+bool validateOperandsForOperator(const std::string& token, const ExprNode* left,
+    const ExprNode* right, int pos, std::vector<Error>& errors);
+
+/**
+ * @brief Обрабатывает бинарную операцию или знак сравнения при построении дерева.
+ * Снимает два операнда со стека, проверяет их и строит новый узел операции.
+ * @param[in] token  Лексема операции.
+ * @param[in] pos  Позиция лексемы во входной строке.
+ * @param[in,out] st Стек узлов разбора.
+ * @param[in,out] relationCount Счётчик встреченных знаков сравнения.
+ * @param[out]  errors   Вектор ошибок.
+ * @return true, если узел операции успешно построен.
+ */
+bool handleBinaryOperatorToken(const std::string& token, int pos,
+    std::stack<ExprNode*>& st, int& relationCount, std::vector<Error>& errors);
+
+/**
+ * @brief Обрабатывает некорректную лексему.
+ * @param[in] token Некорректная лексема.
+ * @param[in] pos Позиция лексемы во входной строке.
+ * @param[out] errors Вектор ошибок.
+ */
+void handleInvalidToken(const std::string& token, int pos, std::vector<Error>& errors);
+
+/**
+ * @brief Классифицирует одну лексему и делегирует её обработку нужной подфункции.
+ * @param[in] token Текущая лексема.
+ * @param[in] pos Позиция лексемы во входной строке.
+ * @param[in,out] st  Стек узлов разбора.
+ * @param[in,out] relationCount Счётчик встреченных знаков сравнения.
+ * @param[in,out] opCount   Счётчик всех операций.
+ * @param[out] errors Вектор ошибок.
+ * @return true, если лексема обработана без ошибок.
+ */
+bool processToken(const std::string& token, int pos, std::stack<ExprNode*>& st,
+    int& relationCount, int& opCount, std::vector<Error>& errors);
+
+/**
+ * @brief Приводит унарный минус к отрицательному коэффициенту узла.
+ * @param[in,out] node Узел. 
+ */
+void normalizeUnaryMinus(ExprNode* node);
+
+/**
+ * @brief Приводит бинарный минус к + с отрицательным коэффициентом правого операнда.
+ * @param[in,out] node Узел. 
+ */
+void normalizeBinaryMinus(ExprNode* node);
+
+/**
+ * @brief Приводит двойное деление к делению на произведение делителей.
+ * @param[in,out] node Узел. 
+ */
+void normalizeNestedDivision(ExprNode* node);
+
+/**
+ * @brief Переносит потомков дочернего узла на уровень выше, если его тип совпадает с типом текущего узла.
+ * @param[in,out] node Узел.
+ */
+void flattenAssociativeOperands(ExprNode* node);
