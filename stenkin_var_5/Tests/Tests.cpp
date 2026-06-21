@@ -260,7 +260,83 @@ namespace Tests
         {
             runErrorTest("a b ^ 0 =", ErrorType::InvalidOperands);
         }
+
+        TEST_METHOD(testUMinus)
+        {
+            runErrorTest(" _- ", ErrorType::NotEnoughOperands);
+        }
+
+        TEST_METHOD(testZeroPower)
+        {
+            runErrorTest("a 0 ^ 0 =", ErrorType::InvalidOperands);
+        }
+
+        TEST_METHOD(testPowerTooLarge)
+        {
+            runErrorTest("a 101 ^ 0 =", ErrorType::OutOfRange);
+        }
+
+        TEST_METHOD(testNestedPowerAsExponent)
+        {
+            std::string input = "a 2 3 ^ ^ 0 =";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+
+            bool result = buildTree(input, root, errors);
+
+            Assert::IsTrue(result, L"Вложенная степень в показателе должна строиться без ошибок.");
+            Assert::AreEqual(size_t(0), errors.size(), L"Ошибок быть не должно.");
+            Assert::IsNotNull(root, L"Дерево должно быть построено.");
+
+            freeTree(root);
+        }
+
         
+        TEST_METHOD(testLessOrEqualOperator)
+        {
+            std::string input = "a b <=";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+
+            bool result = buildTree(input, root, errors);
+
+            Assert::IsTrue(result, L"Функция должна вернуть true.");
+            Assert::AreEqual(size_t(0), errors.size(), L"Ошибок быть не должно.");
+            Assert::IsNotNull(root, L"Дерево должно быть построено.");
+            Assert::IsTrue(root->type == typeExprNode::le, L"Корень должен быть знаком меньше или равно (<=).");
+
+            freeTree(root);
+        }
+
+        
+        TEST_METHOD(testGreaterOrEqualOperator)
+        {
+            std::string input = "a b >=";
+            ExprNode* root = nullptr;
+            std::vector<Error> errors;
+
+           bool result = buildTree(input, root, errors);
+
+            Assert::IsTrue(result, L"Функция должна вернуть true.");
+            Assert::AreEqual(size_t(0), errors.size(), L"Ошибок быть не должно.");
+            Assert::IsNotNull(root, L"Дерево должно быть построено.");
+            Assert::IsTrue(root->type == typeExprNode::ge, L"Корень должен быть знаком больше или равно (>=).");
+
+            freeTree(root);
+        }
+
+       
+        TEST_METHOD(testOverOperationLimit)
+        {
+            std::string input = "a";
+            for (int i = 0; i < 101; ++i)
+            {
+                input += " a +";
+            }
+            input += " 0 =";
+
+            runErrorTest(input, ErrorType::UnsupportedChar);
+        }
         
     };
 
@@ -599,6 +675,26 @@ namespace Tests
 
             Assert::IsTrue(areTreesEqual(root, expected),
                 L"Комплексный тест: унарные минусы, бинарные минусы, деление и умножение.");
+
+            freeTree(expected);
+            freeTree(root);
+        }
+
+        
+        TEST_METHOD(testUnaryMinusOnOperation)
+        {
+            const std::string name = "testUnaryMinusOnOperation";
+            ExprNode* root = buildAndTransform("a b * _- 0 =", name);
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeOp(typeExprNode::mul, { makeVar("a", 1), makeVar("b", 1) }, -1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"-(a*b) должно превратиться в MUL(a,b) с coefficient = -1, перенеся операнды a,b из старого MUL-узла.");
 
             freeTree(expected);
             freeTree(root);
@@ -1140,6 +1236,27 @@ namespace Tests
 
             Assert::IsTrue(areTreesEqual(root, expected),
                 L"0/(a^8) + b^3/b^3 должно стать con 1.");
+            freeTree(expected);
+            freeTree(root);
+        }
+
+
+        
+        TEST_METHOD(testMulEmptyOperandsBecomesOne)
+        {
+            const std::string name = "testMulEmptyOperandsBecomesOne";
+            ExprNode* root = buildAndSimplify("1 1 * 0 =", name);
+
+            ExprNode* expected = makeOp(typeExprNode::eq,
+                {
+                    makeCon(1.0f, 1),
+                    makeCon(0.0f, 1)
+                });
+            computeHash(expected);
+
+            Assert::IsTrue(areTreesEqual(root, expected),
+                L"1*1 должно схлопнуться в CONST со значением 1.");
+
             freeTree(expected);
             freeTree(root);
         }
